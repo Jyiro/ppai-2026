@@ -1,8 +1,0 @@
-com\ppai\domain\state\EstadoFinalizado.class
-com\ppai\Main.class
-com\ppai\domain\state\EstadoInicial.class
-com\ppai\repository\JpaUtil.class
-com\ppai\domain\model\EjemploEntidad.class
-com\ppai\controller\GestorEjemplo.class
-com\ppai\domain\state\EstadoEjemplo.class
-com\ppai\boundary\PantallaEjemplo.class
