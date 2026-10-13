@@ -3,6 +3,7 @@ package com.ppai.controller.cu28;
 import com.ppai.boundary.cu28.InterfazServidorCorreo;
 import com.ppai.boundary.cu28.PantallaRecepcionBolsin;
 import com.ppai.domain.model.cu28.*;
+import com.ppai.repository.cu28.RepositorioMockBolsines;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -19,6 +20,7 @@ public class GestorRecepcionBolsin {
 
     private PantallaRecepcionBolsin pantalla;
     private final InterfazServidorCorreo servidorCorreo;
+    private final RepositorioMockBolsines repositorioMockBolsines;
 
     private Sesion sesionActual;
     private ComisionMedica comisionMedicaEmpleado;
@@ -46,6 +48,7 @@ public class GestorRecepcionBolsin {
     public GestorRecepcionBolsin(Sesion sesionActual) {
         this.sesionActual = sesionActual;
         this.servidorCorreo = new InterfazServidorCorreo();
+        this.repositorioMockBolsines = new RepositorioMockBolsines();
         this.bolsinesEnviados = new ArrayList<>();
         this.estadosDisponibles = new ArrayList<>();
         this.todosBolsines = new ArrayList<>();
@@ -505,77 +508,9 @@ public class GestorRecepcionBolsin {
 
     public void inicializarBolsinesDeEjemplo(int escenario) {
         this.todosBolsines.clear();
-
-        Estado estadoEnviado = estadosDisponibles.stream()
-                .filter(e -> e.esAmbitoBolsin() && e.esEnviado())
-                .findFirst()
-                .orElse(new Estado(Estado.NOMBRE_ENVIADO, Estado.AMBITO_BOLSIN));
-
-        Estado estadoDocEnviado = estadosDisponibles.stream()
-                .filter(e -> e.esAmbitoDocumentacion() && Estado.NOMBRE_EN_BOLSIN_ENVIADO.equals(e.getNombre()))
-                .findFirst()
-                .orElse(new Estado(Estado.NOMBRE_EN_BOLSIN_ENVIADO, Estado.AMBITO_DOCUMENTACION));
-
-        ComisionMedica cmDestinoActual = sesionActual.getUsuario().getCMEmpleado();
-
-        ComisionMedica cmOrigenCordoba = new ComisionMedica(10L, "CMJ N° 1 - Córdoba Capital");
-        ComisionMedica cmOrigenMendoza = new ComisionMedica(11L, "CMJ N° 4 - Mendoza");
-        ComisionMedica cmOrigenLaPlata = new ComisionMedica(12L, "CMJ N° 11 - La Plata");
-        ComisionMedica cmOrigenRosario = new ComisionMedica(13L, "CMJ N° 7 - Rosario");
-
-        TipoDocumento tipoExpediente = new TipoDocumento(1L, "Expediente de Accidente Laboral");
-        TipoDocumento tipoDictamen = new TipoDocumento(2L, "Dictamen Médico Legal");
-        TipoDocumento tipoEstudio = new TipoDocumento(3L, "Estudio Clínico / Resonancia");
-        TipoDocumento tipoCartaDoc = new TipoDocumento(4L, "Carta Documento Notificada");
-
-        // ── Bolsín 1: Estándar (Flujo Básico - Opción 1) ──────────────────────
-        Documentacion d1 = new Documentacion(101L, "EXP-2026-904: Trámite incapacidad laboral Gómez",
-                tipoExpediente, estadoDocEnviado, LocalDateTime.now().minusDays(3));
-        Documentacion d2 = new Documentacion(102L, "DIC-2026-312: Dictamen traumatológico pericial",
-                tipoDictamen, estadoDocEnviado, LocalDateTime.now().minusDays(3));
-
-        Remito r1 = new Remito("REM-2026-00458");
-        r1.agregarDetalle(new DetalleRemito(d1));
-        r1.agregarDetalle(new DetalleRemito(d2));
-
-        Bolsin b1 = new Bolsin("PREC-7041", cmOrigenCordoba, cmDestinoActual, r1, estadoEnviado, LocalDateTime.now().minusDays(3));
-        todosBolsines.add(b1);
-
-        // ── Bolsín 2: Múltiples Docs (Ideal para probar A3 o A4) ─────────────
-        Documentacion d3 = new Documentacion(201L, "EXP-2026-1188: Evaluación secuelas respiratorias",
-                tipoExpediente, estadoDocEnviado, LocalDateTime.now().minusDays(2));
-        Documentacion d4 = new Documentacion(202L, "EST-2026-049: Tomografía computada de tórax",
-                tipoEstudio, estadoDocEnviado, LocalDateTime.now().minusDays(2));
-        Documentacion d5 = new Documentacion(203L, "CD-2026-881: Intimación empleador ART preventiva",
-                tipoCartaDoc, estadoDocEnviado, LocalDateTime.now().minusDays(2));
-        Documentacion d6 = new Documentacion(204L, "DIC-2026-505: Junta médica interdisciplinaria",
-                tipoDictamen, estadoDocEnviado, LocalDateTime.now().minusDays(2));
-
-        Remito r2 = new Remito("REM-2026-00892");
-        r2.agregarDetalle(new DetalleRemito(d3));
-        r2.agregarDetalle(new DetalleRemito(d4));
-        r2.agregarDetalle(new DetalleRemito(d5));
-        r2.agregarDetalle(new DetalleRemito(d6));
-
-        Bolsin b2 = new Bolsin("PREC-8820", cmOrigenMendoza, cmDestinoActual, r2, estadoEnviado, LocalDateTime.now().minusDays(2));
-        todosBolsines.add(b2);
-
-        // ── Bolsín 3: Remesa Urgente (Ideal para Opción 4 en CMC) ────────────
-        Documentacion d7 = new Documentacion(301L, "EXP-2026-3401: Apelación Dictamen CMC Sala B",
-                tipoExpediente, estadoDocEnviado, LocalDateTime.now().minusHours(18));
-
-        Remito r3 = new Remito("REM-2026-01204");
-        r3.agregarDetalle(new DetalleRemito(d7));
-
-        Bolsin b3 = new Bolsin("PREC-9150", cmOrigenLaPlata, cmDestinoActual, r3, estadoEnviado, LocalDateTime.now().minusHours(18));
-        todosBolsines.add(b3);
-
-        // Bolsín 4: Bolsín con destino a OTRA CM (para verificar que NO aparece en la lista)
-        ComisionMedica cmOtra = new ComisionMedica(99L, "CMJ N° 99 - Salta");
-        Remito r4 = new Remito("REM-2026-99999");
-        r4.agregarDetalle(new DetalleRemito(new Documentacion(900L, "Trámite de otra provincia", tipoExpediente, estadoDocEnviado, LocalDateTime.now())));
-        Bolsin b4 = new Bolsin("PREC-9999", cmOrigenRosario, cmOtra, r4, estadoEnviado, LocalDateTime.now().minusDays(1));
-        todosBolsines.add(b4);
+        this.todosBolsines.addAll(
+                repositorioMockBolsines.crearBolsinesParaEscenario(sesionActual, estadosDisponibles, escenario)
+        );
     }
 
     // Getters auxiliares para la interfaz

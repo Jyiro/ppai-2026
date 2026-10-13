@@ -154,6 +154,27 @@ public class CU28Test {
     }
 
     @Test
+    @DisplayName("Flujo Alternativo A6: No confirmar mantiene el bolsín enviado")
+    void testFlujoAlternativoA6_NoConfirmar() {
+        List<Bolsin> bolsines = gestor.getBolsinesEnviados();
+        Bolsin bolsin = bolsines.get(0);
+        gestor.tomarSeleccionBolsin(bolsin);
+
+        OpcionRecepcion opc1 = gestor.buscarOpcionesRecepcion().stream()
+                .filter(OpcionRecepcion::esContenidoIgual)
+                .findFirst()
+                .orElseThrow();
+
+        gestor.tomarSeleccionOpcion(opc1, Collections.emptyList());
+        gestor.tomarConfirmacionSeleccion(false);
+
+        assertEquals(Estado.NOMBRE_ENVIADO, bolsin.getEstadoActual().getNombre(),
+                "Si el EB no confirma, el bolsín debe seguir ENVIADO");
+        assertNull(gestor.getUltimaNotificacionEnviada(),
+                "Si el EB no confirma, no debe generarse notificación CU 29");
+    }
+
+    @Test
     @DisplayName("Flujos Alternativos A1 y A2: Filtros de precinto y CM origen")
     void testFiltrosA1yA2() {
         // A1: Precinto inexistente
