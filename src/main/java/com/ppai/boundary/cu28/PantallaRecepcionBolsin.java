@@ -122,6 +122,8 @@ public class PantallaRecepcionBolsin extends BorderPane {
      */
     public void habilitar() {
         this.habilitada = true;
+        this.bolsinSeleccionadoEnTabla = null;
+        this.opcionSeleccionadaActual = null;
         irAPaso(1);
         actualizarStatus("Pantalla habilitada. Esperando selección de bolsín enviado.");
     }
@@ -140,6 +142,8 @@ public class PantallaRecepcionBolsin extends BorderPane {
      * DS-CU28 sec. 3: Muestra la lista de bolsines en estado ENVIADO hacia la CM activa.
      */
     public void mostrarBolsines(List<Bolsin> bolsines) {
+        this.bolsinSeleccionadoEnTabla = null;
+        this.opcionSeleccionadaActual = null;
         this.listaBolsinesData.setAll(bolsines);
         tblBolsines.refresh();
 
@@ -158,8 +162,16 @@ public class PantallaRecepcionBolsin extends BorderPane {
     /**
      * DS-CU28 sec. 3: Métodos de compatibilidad individual con el diagrama de secuencia.
      */
+    public void mostrarNumeroPrecinto() {
+        // Invocado fuera del loop según corrección docente
+    }
+
     public void mostrarNumeroPrecinto(String numeroPrecinto) {
         // Integrado en la tabla de bolsines
+    }
+
+    public void mostrarCMOrigen() {
+        // Invocado fuera del loop según corrección docente
     }
 
     public void mostrarCMOrigen(ComisionMedica cmOrigen) {
@@ -195,9 +207,15 @@ public class PantallaRecepcionBolsin extends BorderPane {
      * DS-CU28 paso 15: Muestra los datos del remito y el detalle de documentaciones asociadas.
      */
     public void mostrarDatosDeRemito(Remito remito) {
-        lblDetallePrecinto.setText(bolsinSeleccionadoEnTabla.getNumeroPrecinto());
-        lblDetalleCMOrigen.setText(bolsinSeleccionadoEnTabla.getCMOrigen().getNombre());
-        lblDetalleFechaEnvio.setText(bolsinSeleccionadoEnTabla.getFechaEnvio().format(FORMATO_FECHA));
+        Bolsin bolsin = (gestor != null && gestor.getBolsinSeleccionado() != null)
+                ? gestor.getBolsinSeleccionado()
+                : this.bolsinSeleccionadoEnTabla;
+        if (bolsin != null) {
+            this.bolsinSeleccionadoEnTabla = bolsin;
+            lblDetallePrecinto.setText(bolsin.getNumeroPrecinto());
+            lblDetalleCMOrigen.setText(bolsin.getCMOrigen().getNombre());
+            lblDetalleFechaEnvio.setText(bolsin.getFechaEnvio().format(FORMATO_FECHA));
+        }
         lblDetalleNumeroRemito.setText(remito.getNumero());
         lblDetalleCantDocs.setText(String.valueOf(remito.getDetalles().size()));
 

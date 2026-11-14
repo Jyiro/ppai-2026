@@ -3,6 +3,9 @@ package com.ppai.controller.cu28;
 import com.ppai.boundary.cu28.InterfazServidorCorreo;
 import com.ppai.boundary.cu28.PantallaRecepcionBolsin;
 import com.ppai.domain.model.cu28.*;
+import com.ppai.iterator.IAgregado;
+import com.ppai.iterator.IIterador;
+import com.ppai.iterator.IteradorBolsin;
 import com.ppai.repository.cu28.RepositorioMockBolsines;
 
 import java.time.LocalDateTime;
@@ -14,9 +17,12 @@ import java.util.stream.Collectors;
 /**
  * Controlador GestorRecepcionBolsin — CU 28: Registrar Recepción de Bolsín.
  * Orquesta los mensajes del caso de uso entre la Pantalla (Boundary) y el Dominio (Entity).
+ * Implementa IAgregado para delegar el recorrido y filtrado de bolsines en IteradorBolsin.
  * Mantiene estricta trazabilidad con el Diagrama de Secuencia y el modelo de objetos DSI.
+ *
+ * NOTA DE DISEÑO: No utiliza ni extiende java.util.Iterable ni java.util.Iterator.
  */
-public class GestorRecepcionBolsin {
+public class GestorRecepcionBolsin implements IAgregado {
 
     private PantallaRecepcionBolsin pantalla;
     private final InterfazServidorCorreo servidorCorreo;
@@ -72,6 +78,11 @@ public class GestorRecepcionBolsin {
     public void tomarOpcionRegistrarRecepcionBolsin() {
         System.out.println("[GESTOR] Iniciando CU-28: Registrar Recepción de Bolsín.");
 
+        this.bolsinSeleccionado = null;
+        this.remitoSeleccionado = null;
+        this.opcionSeleccionada = null;
+        this.documentacionesNoConformes = new ArrayList<>();
+
         // DS-CU28 pasos 4-7: Buscar usuario y CM
         buscarUsuario();
 
@@ -80,12 +91,14 @@ public class GestorRecepcionBolsin {
             pantalla.mostrarCM(comisionMedicaEmpleado);
         }
 
-        // DS-CU28 paso 9 + sec. 2: Buscar bolsines en estado Enviado
+        // DS-CU28 paso 9 + sec. 2: Buscar bolsines en estado Enviado con Patrón Iterator
         buscarBolsinEstadoEnviado();
 
-        // DS-CU28 sec. 3 + paso 10: Mostrar bolsines y solicitar selección
+        // DS-CU28 sec. 3 + paso 10: Mostrar bolsines y solicitar selección (FUERA DEL LOOP)
         if (pantalla != null) {
             pantalla.mostrarBolsines(bolsinesEnviados);
+            pantalla.mostrarNumeroPrecinto();
+            pantalla.mostrarCMOrigen();
             pantalla.solicitarSeleccionBolsin();
         }
     }
@@ -102,15 +115,45 @@ public class GestorRecepcionBolsin {
                 + " | CM: " + comisionMedicaEmpleado.getNombre());
     }
 
+    @Override
+    public IIterador crearIterador(Object[] elementos) {
+        Bolsin[] array;
+        if (elementos instanceof Bolsin[]) {
+            array = (Bolsin[]) elementos;
+        } else if (elementos != null) {
+            array = new Bolsin[elementos.length];
+            for (int i = 0; i < elementos.length; i++) {
+                array[i] = (Bolsin) elementos[i];
+            }
+        } else {
+            array = this.todosBolsines.toArray(new Bolsin[0]);
+        }
+        Object[] filtros = new Object[]{ this.comisionMedicaEmpleado };
+        return new IteradorBolsin(array, filtros);
+    }
+
+    public IIterador crearIterador(Bolsin[] elementos) {
+        Object[] filtros = new Object[]{ this.comisionMedicaEmpleado };
+        return new IteradorBolsin(elementos != null ? elementos : this.todosBolsines.toArray(new Bolsin[0]), filtros);
+    }
+
     /**
-     * DS-CU28 paso 9 y loop sec. 2: Filtra bolsines cuyo estado sea ENVIADO hacia la CM del empleado.
+     * DS-CU28 paso 9 y loop sec. 2: Filtra bolsines cuyo estado sea ENVIADO hacia la CM del empleado
+     * utilizando el patrón Iterator propio (IteradorBolsin).
      */
     public void buscarBolsinEstadoEnviado() {
         this.bolsinesEnviados.clear();
-        for (Bolsin bolsin : todosBolsines) {
-            if (bolsin.sosEnviado(comisionMedicaEmpleado)) {
+        Bolsin[] elementos = todosBolsines.toArray(new Bolsin[0]);
+        IIterador itBol = crearIterador(elementos);
+        itBol.primero();
+        while (!itBol.haFinalizado()) {
+            Bolsin bolsin = (Bolsin) itBol.actual();
+            if (bolsin != null) {
+                bolsin.getNombreCMOrigen();
+                bolsin.getNroPrecinto();
                 bolsinesEnviados.add(bolsin);
             }
+            itBol.siguiente();
         }
         System.out.println("[GESTOR] Bolsines en estado ENVIADO encontrados: " + bolsinesEnviados.size());
     }
@@ -262,8 +305,23 @@ public class GestorRecepcionBolsin {
      * DS-CU28 pasos 18-19: Captura la opción de recepción elegida y la lista de documentos afectados (para A3 o A4).
      */
     public void tomarSeleccionOpcion(OpcionRecepcion opcion, List<Documentacion> docsNoConformes) {
+        if (opcion != null && opcion.isSoloCMC()) {
+            boolean esDestinoCMC = comisionMedicaEmpleado != null
+                    && (comisionMedicaEmpleado.getNombre().toUpperCase().contains("CENTRAL")
+                    || comisionMedicaEmpleado.getNombre().toUpperCase().contains("CMC"));
+            if (!esDestinoCMC) {
+                System.out.println("[GESTOR] Advertencia Flujo A5: La opción 4 solo está permitida para Comisión Médica Central.");
+                if (pantalla != null) {
+                    pantalla.mostrarAlerta("Opción No Disponible (Flujo A5)",
+                            "La opción 'Redirigir a otra área' solo aplica si la CM destino es CMC.");
+                }
+                this.opcionSeleccionada = null;
+                return;
+            }
+        }
+
         this.opcionSeleccionada = opcion;
-        this.documentacionesNoConformes = (docsNoConformes != null) ? docsNoConformes : new ArrayList<>();
+        this.documentacionesNoConformes = (docsNoConformes != null) ? new ArrayList<>(docsNoConformes) : new ArrayList<>();
 
         System.out.println("[GESTOR] Opción de recepción seleccionada: " + opcion.getTitulo()
                 + " | Documentos observados: " + this.documentacionesNoConformes.size());
@@ -367,39 +425,39 @@ public class GestorRecepcionBolsin {
         // 1. Actualizar Bolsín -> Siempre "Recibido en CM destino" (+ fecha/hora + empleado)
         bolsinSeleccionado.marcarRecibido(estadoRecibidoCMDestino, fechaHoraActual, empleadoActual);
 
-        // 2. Actualizar Remito según opción elegida
+        // 2. Actualizar Remito y Documentaciones según opción elegida
         if (remitoSeleccionado != null) {
-            if (opcionSeleccionada != null && (opcionSeleccionada.esFaltaDocumentacion() || opcionSeleccionada.esNoCorrespondeDestino())) {
-                remitoSeleccionado.marcarRecibidoYAceptadoParcial(estadoRemitoRecibidoAceptadoParcial);
-            } else {
+            if (opcionSeleccionada == null || opcionSeleccionada.esContenidoIgual()) {
+                // Opción 1: Orquestador único aceptar() en Remito según indicación docente
                 remitoSeleccionado.marcarRecibidoYAceptado(estadoRemitoRecibidoAceptado);
-            }
-        }
-
-        // 3. Actualizar Documentaciones según opción elegida
-        if (remitoSeleccionado != null) {
-            for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
-                Documentacion doc = detalle.getDocumentacion();
-
-                if (opcionSeleccionada == null || opcionSeleccionada.esContenidoIgual()) {
-                    // Opción 1: Todas Recibida y aceptada
-                    doc.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
-                } else if (opcionSeleccionada.esFaltaDocumentacion()) {
-                    // Opción 2 (A3): Las faltantes pasan a No recibida, las demás a Recibida y aceptada
+                remitoSeleccionado.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
+            } else if (opcionSeleccionada.esFaltaDocumentacion()) {
+                // Opción 2 (A3): Remito a Recibido y aceptado parcial; docs faltantes a No recibida, demás a Recibida y aceptada
+                remitoSeleccionado.marcarRecibidoYAceptadoParcial(estadoRemitoRecibidoAceptadoParcial);
+                for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
+                    Documentacion doc = detalle.getDocumentacion();
                     if (documentacionesNoConformes.contains(doc)) {
                         doc.marcarNoRecibida(estadoDocNoRecibida, fechaHoraActual, empleadoActual);
                     } else {
                         doc.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
                     }
-                } else if (opcionSeleccionada.esNoCorrespondeDestino()) {
-                    // Opción 3 (A4): Las que no corresponden pasan a Recibida y rechazada, las demás a Recibida y aceptada
+                }
+            } else if (opcionSeleccionada.esNoCorrespondeDestino()) {
+                // Opción 3 (A4): Remito a Recibido y aceptado parcial; erróneas a Recibida y rechazada, demás a Recibida y aceptada
+                remitoSeleccionado.marcarRecibidoYAceptadoParcial(estadoRemitoRecibidoAceptadoParcial);
+                for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
+                    Documentacion doc = detalle.getDocumentacion();
                     if (documentacionesNoConformes.contains(doc)) {
                         doc.rechazar(estadoDocRecibidaRechazada, fechaHoraActual, empleadoActual);
                     } else {
                         doc.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
                     }
-                } else if (opcionSeleccionada.esRedirigirAOtraArea()) {
-                    // Opción 4 (A5): Pasan a Para redirigir
+                }
+            } else if (opcionSeleccionada.esRedirigirAOtraArea()) {
+                // Opción 4 (A5): Remito a Recibido y aceptado; docs a Para redirigir
+                remitoSeleccionado.marcarRecibidoYAceptado(estadoRemitoRecibidoAceptado);
+                for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
+                    Documentacion doc = detalle.getDocumentacion();
                     doc.paraRedirigir(estadoDocParaRedirigir, fechaHoraActual, empleadoActual);
                 }
             }
@@ -449,6 +507,10 @@ public class GestorRecepcionBolsin {
      */
     public void finCU() {
         System.out.println("[GESTOR] Caso de uso CU-28 finalizado con éxito.");
+        this.bolsinSeleccionado = null;
+        this.remitoSeleccionado = null;
+        this.opcionSeleccionada = null;
+        this.documentacionesNoConformes = new ArrayList<>();
     }
 
     /**
@@ -459,7 +521,7 @@ public class GestorRecepcionBolsin {
         this.bolsinSeleccionado = null;
         this.remitoSeleccionado = null;
         this.opcionSeleccionada = null;
-        this.documentacionesNoConformes.clear();
+        this.documentacionesNoConformes = new ArrayList<>();
         buscarBolsinEstadoEnviado();
         if (pantalla != null) {
             pantalla.mostrarBolsines(bolsinesEnviados);

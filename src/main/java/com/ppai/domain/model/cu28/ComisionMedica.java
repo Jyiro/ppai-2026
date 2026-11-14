@@ -16,7 +16,23 @@ public class ComisionMedica {
 
     /** DS-CU28 loop sec. 2: Verifica si esta CM coincide con la consultante. */
     public boolean esTuCMDestino(ComisionMedica cmConsultante) {
-        return this.id != null && this.id.equals(cmConsultante.getId());
+        return cmConsultante != null && this.id != null && this.id.equals(cmConsultante.getId());
+    }
+
+    /** DS-CU28 loop sec. 2: Verifica si esta CM coincide con la consultante por nombre o identificador. */
+    public boolean esTuCMDestino(String cmUsuario) {
+        if (cmUsuario == null) {
+            return false;
+        }
+        if (this.nombre != null && (this.nombre.equalsIgnoreCase(cmUsuario)
+                || this.nombre.toLowerCase().contains(cmUsuario.toLowerCase())
+                || cmUsuario.toLowerCase().contains(this.nombre.toLowerCase()))) {
+            return true;
+        }
+        if (this.id != null && this.id.toString().equals(cmUsuario)) {
+            return true;
+        }
+        return false;
     }
 
     public Long getId() {

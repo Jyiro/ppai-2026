@@ -13,6 +13,7 @@
 | Trabajo | PPAI 2026 — caso **Bolsines** |
 | Asignación (grupo par) | **CU 28 – Registrar recepción de bolsín** |
 | Máquina de estados | **Clase Documentación** |
+| Patrón GoF aplicado (E2) | **Iterator** (con 3 agregados concretos y 3 iteradores concretos) |
 | Persona UX | Encargado de Bolsines (EB) |
 | Tareas del proyecto | Diagramas de las vistas · ayuda con el código · interfaces (GUI) |
 | Stack elegido | Java + **JavaFX 21** + Maven, aplicación de **escritorio**, VSCode en Windows |
@@ -62,7 +63,7 @@
 8. EB elige la opción 1.
 9. Sistema pide confirmación.
 10. EB confirma.
-11. Sistema actualiza: bolsín → **Recibido en CM destino** (+ empleado responsable); remitos → **Recibido y aceptado**; documentación → **Recibida y aceptada** (+ empleado responsable).
+11. Sistema actualiza: bolsín → **Recibido en CM destino** (+ empleado responsable); remitos → **Recibido y aceptado** (en nuestro alcance se orquesta con `aceptar()` hacia la documentación); documentación → **Recibida y aceptada** (+ empleado responsable).
 12. Sistema **incluye CU 29 Notificar recepción de bolsín** (mail a cada CM origen con la situación de la documentación). Informa éxito. Fin.
 
 ### Flujos alternativos
@@ -124,133 +125,361 @@ En todos los casos el **bolsín** pasa a **Recibido en CM destino**.
 | Recibida y rechazada | Registrada | 31 Registrar Revisión de Documentación | [se reenvía a la CM correcta] | `volverARegistrada()` |
 | Recibida y rechazada | De baja | 31 Registrar Revisión de Documentación | [se da de baja] | `darDeBaja()` |
 
-> Consigna E1: en cada transición indicar **método**, **caso de uso** y, cuando aplique, **condición de control (guarda)**.
-> Los métodos sugeridos son orientativos: `setEstado()`, `aceptar()`, `remitar()` y `crearCE()` vienen del Modelo de Dominio; el resto validar contra el modelo v11 y lo trabajado en clase.
-> Ojo: la RN "Contenido de un Bolsín" permite modificar el bolsín en origen **cerrado o no**, pero el objetivo del CU 20 dice "mientras no esté cerrado" → inconsistencia de la ERS, aclarar con el tutor.
-
-### Diagrama (Mermaid)
-
-```mermaid
-stateDiagram-v2
-    state "En remito" as EnRemito
-    state "En bolsín saliente" as EnBolsinSaliente
-    state "En bolsín enviado" as EnBolsinEnviado
-    state "Recibida y aceptada" as RecibidaAceptada
-    state "No recibida" as NoRecibida
-    state "Recibida y rechazada" as RecibidaRechazada
-    state "Para redirigir" as ParaRedirigir
-    state "De baja" as DeBaja
-
-    [*] --> Registrada : registrar() — CU 7
-    Registrada --> EnRemito : remitar() — CU 15 / 16
-    EnRemito --> Registrada : volverARegistrada() — CU 17 / 16
-    Registrada --> DeBaja : darDeBaja() [sin remito ni bolsín] — CU 9
-    EnRemito --> EnBolsinSaliente : incluirEnBolsin() — CU 19 / 20
-    EnBolsinSaliente --> EnRemito : quitarDeBolsin() — CU 20 / 21
-    EnBolsinSaliente --> EnBolsinEnviado : enviar() — CU 27
-    EnBolsinEnviado --> RecibidaAceptada : aceptar() — CU 28
-    EnBolsinEnviado --> NoRecibida : marcarNoRecibida() — CU 28 (A3)
-    EnBolsinEnviado --> RecibidaRechazada : rechazar() — CU 28 (A4)
-    EnBolsinEnviado --> ParaRedirigir : paraRedirigir() [CM destino = CMC] — CU 28 (A5)
-    ParaRedirigir --> RecibidaAceptada : aceptar() [corresponde al área]
-    ParaRedirigir --> RecibidaRechazada : rechazar() [no corresponde al área]
-    NoRecibida --> Registrada : volverARegistrada() — CU 31
-    NoRecibida --> DeBaja : darDeBaja() — CU 31
-    RecibidaRechazada --> Registrada : volverARegistrada() — CU 31
-    RecibidaRechazada --> DeBaja : darDeBaja() — CU 31
-    RecibidaAceptada --> [*]
-    DeBaja --> [*]
-```
-
-### Estados de otras clases que toca el CU 28 (referencia)
-- **Bolsín:** Creado → Cerrado → Enviado → **Recibido en CM destino** (también De baja desde Creado/Cerrado).
-- **Remito:** Creado → En bolsín saliente → En bolsín enviado → **Recibido y aceptado** / **Recibido y aceptado parcial** (Cancelado desde Creado).
-
 ---
 
 ## 6. Entrega 1 — Análisis
 
-Base de modelado: **solo** clases del Modelo de Dominio de la cátedra + la solución trabajada en clase.
-
-1. **Vista de clases de análisis** (diagrama de clases con las clases necesarias para el escenario del CU 28).
-2. **Vista de interacción** (diagrama de secuencia del flujo básico, aplicando GRASP).
+1. **Vista de clases de análisis:** `PantallaRecepcionBolsin` (`<<boundary>>`), `GestorRecepcionBolsin` (`<<control>>`), `Sesion`, `Usuario`, `Empleado`, `ComisionMedica`, `Bolsin`, `CambioEstadoBolsin`, `Remito`, `DetalleRemito`, `Documentacion`, `CambioEstadoDocumentacion`, `TipoDocumento`, `Estado`.
+2. **Vista de interacción:** Diagrama de secuencia del flujo básico aplicando GRASP (ver `CU28_Registrar_Recepcion_Bolsin.md`).
 3. **Máquina de estados de Documentación** (sección 5).
 
-### Clases de análisis (propuesta)
-- **Boundary:** `PantallaRegistrarRecepcionBolsin`, `InterfazServidorCorreo` (para el include del CU 29)
-- **Control:** `GestorRegistrarRecepcionBolsin`
-- **Entidades:** `Sesion`, `Usuario`, `Empleado`, `ComisionMedica`, `Bolsin`, `Remito`, `Documentacion`, `TipoDocumento`, `Estado`, `CambioEstado`
-
-> Convención habitual de la cátedra: `Estado` con `ámbito` + `nombre` y métodos `esAmbitoX()` / `esNombreEstado()`; cada cambio de estado cierra el `CambioEstado` actual (`setFechaHoraFin()`) y crea uno nuevo (`crearCE()`) con fecha/hora inicio y empleado responsable. Validar nombres exactos contra el Modelo de Dominio v11 (el PDF es imagen).
-
-### Esqueleto de la secuencia (nombres sugeridos)
-| Paso | Mensajes |
-|---|---|
-| 1 | EB → Pantalla `opcionRegistrarRecepcionBolsin()` → `habilitarPantalla()` → Gestor `nuevaRecepcionBolsin()` |
-| 2 | Gestor `buscarCMUsuarioLogueado()` → `Sesion.getUsuario()` → `Usuario.getEmpleado()` → `Empleado.getComisionMedica()` → Pantalla `mostrarCM()` |
-| 3 | Gestor `buscarBolsinesEnviados()` → *`Bolsin.esEnviado()` → `Estado.esEnviado()` · `Bolsin.esDeCMDestino(cm)` |
-| 4 | *`Bolsin.getCMOrigen()`, `getNroPrecinto()` → Pantalla `mostrarBolsines()`, `solicitarSeleccionBolsin()` |
-| 5 | EB `tomarSeleccionBolsin()` → Gestor `tomarBolsin()` |
-| 6 | Gestor `buscarRemitosYDocumentacion()` → `Bolsin.getRemitos()` → *`Remito.getNumero()`, `getDocumentacion()` → *`Documentacion.getAsunto()`, `getTipoDocumento()` → `TipoDocumento.getNombre()` |
-| 7–8 | Pantalla `mostrarOpcionesRecepcion()` → EB `tomarOpcionRecepcion()` |
-| 9–10 | Pantalla `solicitarConfirmacion()` → EB `tomarConfirmacion()` |
-| 11 | Gestor `getFechaHoraActual()`, `buscarEstados…()` → `Bolsin.recibir()` → *`Remito.aceptar()` → *`Documentacion.aceptar()` → `CambioEstado.setFechaHoraFin()` + `crearCE()` |
-| 12 | Gestor `notificarRecepcion()` → include CU 29 (`InterfazServidorCorreo`) → `finCU()` |
-
-**GRASP:** Controlador (Gestor), Experto (cada entidad responde por sus datos/estado), Creador (`Documentacion` crea su `CambioEstado`), Bajo acoplamiento / Alta cohesión.
-
 ---
 
-## 7. Entrega 2 — Diseño e implementación
+## 7. Entrega 2 — Diseño e implementación (Patrón Iterator)
 
-### Rediseño
-- Aplicar **un patrón GoF acordado con el tutor**. Candidato natural: **State** sobre `Documentacion` (es la MdE asignada). Alternativas a evaluar: Strategy (opciones de recepción), Observer (notificación CU 29).
-- Entregar: problema que resuelve + justificación; **diagrama de clases de diseño** (tipos de datos, retornos, parámetros, visibilidad); **secuencia de diseño** de la parte rediseñada.
+### 7.1. Problema que resuelve y justificación del Patrón Iterator
+En el Caso de Uso 28 es necesario realizar tres recorridos sobre colecciones de distinta naturaleza y con diferentes criterios de filtrado:
+1. Recorrer la colección de **Bolsines** del sistema filtrando aquellos que estén en estado *Enviado* y cuya CM destino coincida con la CM del usuario logueado (`cmUsuario`).
+2. Recorrer la colección de **Remitos** asociados al bolsín seleccionado.
+3. Recorrer la colección de **Detalles de Remito** (`DetalleRemito`) de cada remito para obtener el asunto y tipo de cada documentación.
 
-### Implementación
-- Lenguaje: Java · UI: JavaFX 21 · Build: Maven · Tecnología: escritorio (la consigna admite Web/Escritorio; la RNF 1 de la ERS dice web → dejarlo justificado).
-- Base de datos y framework de persistencia: **a definir** (la persistencia en BD es criterio de corrección).
-- Arquitectura sugerida: `Pantalla` (FXML + controller JavaFX) ↔ `Gestor` ↔ entidades ↔ capa de persistencia (DAO/repositorio).
+Aplicando el patrón **Iterator (GoF)** se desacopla a los agregados (`GestorRegistrarRecepcionBolsin`, `Bolsin` y `Remito`) de la estructura interna de las colecciones y de la responsabilidad de mantener el puntero de recorrido y la evaluación de filtros, delegando estas responsabilidades en clases de fabricación pura (`IteradorBolsin`, `IteradorRemito`, `IteradorDetalleRemito`) que implementan una interfaz común `IIterador`.
 
-### Criterios de corrección
-- Funciona el **flujo básico + al menos 2 flujos alternativos** (candidatos: A3 y A4 por su impacto en la MdE; A1/A2 son simples de mostrar).
-- Consistencia con el modelado (gestor, pantalla/boundary, entidades, patrón).
-- Persistencia correcta en BD.
-- Defensa oral del código y del patrón; se califica ese día.
+### 7.2. Estructura del Patrón Iterator (Diagrama de Clases de Diseño)
 
----
+#### Interfaces del Patrón
+* **`<<interface>> IAgregado`**
+  * `+ crearIterador(elementos: Object[]): IIterador`
+  * *Relaciones:* Dependencia (`..>`) hacia `IIterador` (por el tipo de retorno de `crearIterador()`).
+* **`<<interface>> IIterador`**
+  * `+ elementoActual(): Object` (o `actual(): Object`)
+  * `+ haFinalizado(): boolean`
+  * `+ primero(): void`
+  * `+ siguiente(): void`
 
-## 8. UX e interfaces
+#### Iteradores Concretos (implementan `IIterador`)
+* **`IteradorBolsin`**
+  * **Atributos:**
+    * `- lista: Bolsin[]`
+    * `- posicionActual: int`
+    * `- filtros: Object[]` *(almacena `cmUsuario`)*
+  * **Métodos:**
+    * `+ comprobarFiltro(filtro: Object[]): boolean`
+    * `+ elementoActual(): Object`
+    * `+ haFinalizado(): boolean`
+    * `+ primero(): void`
+    * `+ siguiente(): void`
+    * `+ new(elementos: Object[], filtros: Object[]): IteradorBolsin`
+  * *Relaciones:* Realiza `IIterador`. Dependencia (`..>`) hacia `Bolsin`.
+* **`IteradorRemito`**
+  * **Atributos:**
+    * `- lista: Remito[]`
+    * `- posicionActual: int`
+  * **Métodos:**
+    * `+ elementoActual(): Object`
+    * `+ haFinalizado(): boolean`
+    * `+ primero(): void`
+    * `+ siguiente(): void`
+    * `+ new(elementos: Object[]): IteradorRemito`
+  * *Relaciones:* Realiza `IIterador`. Dependencia (`..>`) hacia `Remito`.
+* **`IteradorDetalleRemito`**
+  * **Atributos:**
+    * `- lista: DetalleRemito[]`
+    * `- posicionActual: int`
+  * **Métodos:**
+    * `+ elementoActual(): Object`
+    * `+ haFinalizado(): boolean`
+    * `+ primero(): void`
+    * `+ siguiente(): void`
+    * `+ new(elementos: Object[]): IteradorDetalleRemito`
+  * *Relaciones:* Realiza `IIterador`. Dependencia (`..>`) hacia `DetalleRemito`.
 
-- Actividades en aula (persona EB): **MoodBoard**, **Mapa de empatía**, **User Journey** (antes / durante / después). Guardar fotos para la defensa.
-- Diseño de GUI aplicando **patrones de diseño de interfaces**; se defiende en la presentación oral.
-- Preferencias de estilo: estética moderna, interacciones como Drag & Drop.
+#### Agregados Concretos (implementan `IAgregado`) y Entidades vinculadas
 
-### Pantallas del CU 28 (propuesta)
-1. **Bolsines por recibir:** CM del usuario + tabla de bolsines enviados (CM origen, nº precinto) con filtros.
-2. **Detalle del bolsín:** remitos → documentación (asunto, tipo).
-3. **Opción de recepción:** 4 opciones; en A3/A4 marcar **qué documentación** no llegó / no corresponde (la ERS no lo detalla → decisión de diseño).
-4. **Confirmación** (con opción de no confirmar → A6).
-5. **Resultado** + aviso de notificación enviada (CU 29). Botón **Cancelar** siempre visible (Obs. 1).
+* **`GestorRegistrarRecepcionBolsin`** (`<<control>>` — Primer Agregado Concreto)
+  * **Atributos:**
+    * `- cmUsuario: String`
+    * `- bolsinesEnviados: Bolsin[]`
+    * `- bolsinSeleccionado: Bolsin`
+    * `- opcionSeleccionada: String`
+    * `- empleado: Empleado`
+    * `- fechaHoraActual: DateTime`
+    * `- estadoRecibidoEnCMDestino: Estado`
+    * `- estadoRecibidoYAceptado: Estado`
+    * `- estadoRecibidaYAceptada: Estado`
+  * **Métodos (foco en Iterator y CU 28):**
+    * `+ buscarBolsinEstadoEnviado(): String[][]` (o `String[]` / `void`)
+    * `+ obtenerInformacionRemito(): void`
+    * `+ registrarRecepcionBolsin(): void`
+    * `+ crearIterador(elementos: Bolsin[]): IIterador`
+  * *Relaciones:* Realiza `IAgregado`. Dependencia de creación hacia `IteradorBolsin`. Asociaciones/dependencias hacia `Bolsin`, `Estado`, `ComisionMedica`, `Empleado`, `Sesion`, `PantallaRecepcionBolsin`.
 
----
+* **`Bolsin`** (Segundo Agregado Concreto)
+  * **Atributos:**
+    * `- fecha: DateTime`
+    * `- numeroBolsin: int`
+    * `- numeroPrecinto: int`
+    * `- peso: double`
+  * **Asociaciones (Roles):**
+    * `remito: Remito[1..*]` (Agregación)
+    * `cambioEstadoTexto` / `cambioEstadoBolsin: CambioEstadoBolsin[1..*]`
+    * `cmOrigen: ComisionMedica[1]`
+    * `cmDestino: ComisionMedica[1]`
+  * **Métodos:**
+    * `+ getNroPrecinto(): int`
+    * `+ sosEnviado(): boolean`
+    * `+ obtenerInformacionRemito(): String[][]`
+    * `+ getNombreCMOrigen(): String` *(nuevo método de diseño)*
+    * `+ crearIterador(elementos: Remito[]): IIterador`
+    * `+ esTuCMDestino(cmUsuario: String): boolean`
+    * `+ marcarRecibido(...)` / `+ crearNuevoCambioDeEstado(...)` / `+ actualizarRemitoYDocumentacion(...)`
+  * *Relaciones:* Realiza `IAgregado`. Dependencia de creación hacia `IteradorRemito`.
 
-## 9. Pendientes y puntos a aclarar
+* **`Remito`** (Tercer Agregado Concreto)
+  * **Atributos:**
+    * `- fecha: DateTime`
+    * `- numero: int`
+  * **Asociaciones (Roles):**
+    * `detalleRemito: DetalleRemito[1..*]` (Agregación)
+    * `cmOrigen: ComisionMedica[1]`
+    * `cmDestino: ComisionMedica[1]`
+    * `estadoRemito: Estado[1]`
+  * **Métodos:**
+    * `+ getNumero(): int`
+    * `+ buscarDocumentacion(): String[][]`
+    * `+ crearIterador(elementos: DetalleRemito[]): IIterador`
+    * `+ aceptar(...)`
+  * *Relaciones:* Realiza `IAgregado`. Dependencia de creación hacia `IteradorDetalleRemito`.
 
-- [ ] Curso, nº de grupo, tutor y fechas.
-- [ ] Patrón GoF acordado.
-- [ ] BD y framework de persistencia.
-- [ ] Estado del **remito** en A4 y A5 (la ERS no lo define).
-- [ ] Cómo se selecciona la documentación afectada en A3/A4 (por documento).
-- [ ] ¿La opción 4 se habilita solo si la CM del usuario es la CMC?
-- [ ] Inconsistencia CU 20 vs RN sobre modificar bolsín cerrado.
-- [ ] Nombres exactos de clases/atributos/métodos según Modelo de Dominio v11.
+* **`DetalleRemito`**
+  * **Atributos:**
+    * `- areaCMCDestino: String`
+  * **Asociaciones (Roles):**
+    * `documentacion: Documentacion[1]`
+  * **Métodos:**
+    * `+ obtenerAsuntoYTipoDoc(): String[]` *(nuevo método de diseño que reemplaza a `getDocumentacion()`)*
+    * `+ aceptar(...)` / `+ actualizarEstadoDoc(...)`
 
----
+* **`Documentacion`**
+  * **Atributos:**
+    * `- asunto: String`
+    * `- fechaPase: DateTime`
+    * `- numero: int`
+  * **Asociaciones (Roles):**
+    * `tipoDoc: TipoDocumento[1]`
+    * `cambioEstadoDoc: CambioEstadoDocumentacion[1..*]`
+    * `cmOrigen: ComisionMedica[1]`
+  * **Métodos:**
+    * `+ getAsunto(): String`
+    * `+ mostrarTipoDocumentacion(): String`
+    * `+ aceptar(...)` / `+ newCambioEstadoDocumentacion(...)`
 
-## 10. Fuentes del proyecto
-- `2026 DSI Bolsines ERS V12.pdf` — reglas de negocio, CU 28, listado de CU, RNF.
-- `2026 DSI Bolsines Consignas.pdf` — contenido de E1/E2 y criterios.
-- `2026 DSI Bolsines Consignas UX.pdf` — MoodBoard, empatía, journey.
-- `2026 DSI Bolsines Descripción del Caso V1.1.pdf` — dominio y glosario.
-- `2026 DSI Bolsines Modelo de Dominio V 11.pdf` — diagrama de clases del dominio (imagen).
+* **`TipoDocumento`**
+  * **Atributos:** `- descripcion: String`, `- nombre: String`
+  * **Métodos:** `+ getNombre(): String`
+
+* **`ComisionMedica`**
+  * **Atributos:** `- codigo: int`, `- direccion: String`, `- email: String`, `- nombre: String`, `- telefono: String`
+  * **Métodos:** `+ esTuCMDestino(cmUsuario: String): boolean`, `+ getNombre(): String`
+
+* **`CambioEstadoBolsin`**
+  * **Atributos:** `- fechaHoraFin: DateTime`, `- fechaHoraInicio: DateTime`
+  * **Asociaciones (Roles):** `estado: Estado[1]`
+  * **Métodos:** `+ sosActual(): boolean`, `+ sosEnviado(): boolean`, `+ setFechaHoraFin(...)`
+
+* **`CambioEstadoDocumentacion`**
+  * **Atributos:** `- fechaHoraFin: DateTime`, `- fechaHoraInicio: DateTime`
+  * **Asociaciones (Roles):** `estado: Estado[1]`, `empleado: Empleado[1]`
+  * **Métodos:** `+ sosActual(): boolean`, `+ setFechaHoraFin(...)`
+
+* **`Estado`**
+  * **Atributos:** `- nombre: String`, `- descripcion: String`, `- ambito: String`
+  * **Métodos:** `+ esEnviado(): boolean`, `+ esAmbitoBolsin(): boolean`, `+ esEstadoRecibidoEnCMDestino(): boolean`, `+ esAmbitoDocumentacion(): boolean`, `+ esRecibidoYAceptado(): boolean`
+
+#### Diagrama de Clases de Diseño en Mermaid
+
+```mermaid
+classDiagram
+    class IAgregado {
+        <<interface>>
+        +crearIterador(elementos: Object[]) IIterador
+    }
+
+    class IIterador {
+        <<interface>>
+        +elementoActual() Object
+        +haFinalizado() boolean
+        +primero() void
+        +siguiente() void
+    }
+
+    IAgregado ..> IIterador : dependencia (retorno)
+
+    class IteradorBolsin {
+        -lista: Bolsin[]
+        -posicionActual: int
+        -filtros: Object[]
+        +comprobarFiltro(filtro: Object[]) boolean
+        +elementoActual() Object
+        +haFinalizado() boolean
+        +primero() void
+        +siguiente() void
+        +new(elementos: Object[], filtros: Object[]) IteradorBolsin
+    }
+
+    class IteradorRemito {
+        -lista: Remito[]
+        -posicionActual: int
+        +elementoActual() Object
+        +haFinalizado() boolean
+        +primero() void
+        +siguiente() void
+        +new(elementos: Object[]) IteradorRemito
+    }
+
+    class IteradorDetalleRemito {
+        -lista: DetalleRemito[]
+        -posicionActual: int
+        +elementoActual() Object
+        +haFinalizado() boolean
+        +primero() void
+        +siguiente() void
+        +new(elementos: Object[]) IteradorDetalleRemito
+    }
+
+    IIterador <|.. IteradorBolsin
+    IIterador <|.. IteradorRemito
+    IIterador <|.. IteradorDetalleRemito
+
+    class GestorRegistrarRecepcionBolsin {
+        -cmUsuario: String
+        -bolsinesEnviados: Bolsin[]
+        -bolsinSeleccionado: Bolsin
+        -opcionSeleccionada: String
+        -empleado: Empleado
+        -fechaHoraActual: DateTime
+        -estadoRecibidoEnCMDestino: Estado
+        -estadoRecibidoYAceptado: Estado
+        -estadoRecibidaYAceptada: Estado
+        +buscarBolsinEstadoEnviado() String[][]
+        +obtenerInformacionRemito() void
+        +registrarRecepcionBolsin() void
+        +crearIterador(elementos: Bolsin[]) IIterador
+    }
+
+    class Bolsin {
+        -fecha: DateTime
+        -numeroBolsin: int
+        -numeroPrecinto: int
+        -peso: double
+        +getNroPrecinto() int
+        +sosEnviado() boolean
+        +obtenerInformacionRemito() String[][]
+        +getNombreCMOrigen() String
+        +crearIterador(elementos: Remito[]) IIterador
+        +esTuCMDestino(cmUsuario: String) boolean
+    }
+
+    class Remito {
+        -fecha: DateTime
+        -numero: int
+        +getNumero() int
+        +buscarDocumentacion() String[][]
+        +crearIterador(elementos: DetalleRemito[]) IIterador
+    }
+
+    class DetalleRemito {
+        -areaCMCDestino: String
+        +obtenerAsuntoYTipoDoc() String[]
+    }
+
+    class Documentacion {
+        -asunto: String
+        -fechaPase: DateTime
+        -numero: int
+        +getAsunto() String
+        +mostrarTipoDocumentacion() String
+    }
+
+    class TipoDocumento {
+        -descripcion: String
+        -nombre: String
+        +getNombre() String
+    }
+
+    class ComisionMedica {
+        -codigo: int
+        -direccion: String
+        -email: String
+        -nombre: String
+        -telefono: String
+        +esTuCMDestino(cmUsuario: String) boolean
+        +getNombre() String
+    }
+
+    class CambioEstadoBolsin {
+        -fechaHoraFin: DateTime
+        -fechaHoraInicio: DateTime
+        +sosActual() boolean
+        +sosEnviado() boolean
+    }
+
+    class Estado {
+        -nombre: String
+        -descripcion: String
+        -ambito: String
+        +esEnviado() boolean
+    }
+
+    IAgregado <|.. GestorRegistrarRecepcionBolsin
+    IAgregado <|.. Bolsin
+    IAgregado <|.. Remito
+
+    GestorRegistrarRecepcionBolsin ..> IteradorBolsin : <<create>>
+    Bolsin ..> IteradorRemito : <<create>>
+    Remito ..> IteradorDetalleRemito : <<create>>
+
+    IteradorBolsin ..> Bolsin
+    IteradorRemito ..> Remito
+    IteradorDetalleRemito ..> DetalleRemito
+
+    Bolsin o--> "1..*" Remito : remito
+    Bolsin --> "1..*" CambioEstadoBolsin : cambioEstadoTexto
+    Bolsin --> "1" ComisionMedica : cmOrigen
+    Bolsin --> "1" ComisionMedica : cmDestino
+
+    Remito o--> "1..*" DetalleRemito : detalleRemito
+    Remito --> "1" ComisionMedica : cmOrigen
+    Remito --> "1" ComisionMedica : cmDestino
+    Remito --> "1" Estado : estadoRemito
+
+    DetalleRemito --> "1" Documentacion : documentacion
+    Documentacion --> "1" TipoDocumento : tipoDoc
+    CambioEstadoBolsin --> "1" Estado : estado
+8. UX e interfaces
+Actividades en aula (persona EB): MoodBoard, Mapa de empatía, User Journey (antes / durante / después). Guardar fotos para la defensa.
+Diseño de GUI aplicando patrones de diseño de interfaces; se defiende en la presentación oral.
+Preferencias de estilo: estética moderna, interacciones como Drag & Drop.
+Pantallas del CU 28 (propuesta)
+Bolsines por recibir: CM del usuario + tabla de bolsines enviados (CM origen, nº precinto) con filtros (A1: filtro por nº precinto sin resultados; A2: filtro por CM origen sin resultados).
+Detalle del bolsín: remitos → documentación (asunto, tipo).
+Opción de recepción: 4 opciones; en A3/A4 marcar qué documentación no llegó / no corresponde.
+Confirmación (con opción de no confirmar → A6).
+Resultado + aviso de notificación enviada (CU 29). Botón Cancelar siempre visible (Obs. 1).
+9. Pendientes y puntos resueltos
+
+Patrón GoF acordado: Iterator (IAgregado, IIterador, IteradorBolsin, IteradorRemito, IteradorDetalleRemito).
+
+Corrección del profesor en secuencia: los métodos mostrar... hacia la pantalla van fuera del loop de búsqueda de bolsines.
+
+Corrección del profesor en actualización de estados: en Remito se omite marcarRecibidoYAceptado() y queda aceptar() como orquestador hacia DetalleRemito y Documentacion.
+
+Curso, nº de grupo, tutor y fechas.
+
+BD y framework de persistencia (ej. SQLite / H2 / PostgreSQL + JPA/Hibernate o JDBC).
+10. Fuentes del proyecto
+2026 DSI Bolsines ERS V12.pdf — reglas de negocio, CU 28, listado de CU, RNF.
+2026 DSI Bolsines Consignas.pdf — contenido de E1/E2 y criterios.
+2026 DSI Bolsines Consignas UX.pdf — MoodBoard, empatía, journey.
+2026 DSI Bolsines Descripción del Caso V1.1.pdf — dominio y glosario.
+2026 DSI Bolsines Modelo de Dominio V 11.pdf — diagrama de clases del dominio (imagen)
