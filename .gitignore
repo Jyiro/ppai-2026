@@ -33,3 +33,7 @@ target/
 .settings/
 .project/
 .classpath/
+
+# AI Agent folders
+.agent/
+.agents/
