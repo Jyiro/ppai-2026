@@ -374,15 +374,21 @@
 
 /* ── Vista Previa de Notificación CU 29 ─────────────────────────────────── */
 .notification-preview-box {
-    -fx-background-color: #0f172a;
+    -fx-background-color: #f8fafc;
     -fx-background-radius: 8px;
-    -fx-padding: 16px;
-    -fx-border-color: #334155;
+    -fx-border-color: #cbd5e1;
     -fx-border-radius: 8px;
+    -fx-border-width: 1px;
+    -fx-control-inner-background: #f8fafc;
+}
+
+.notification-preview-box .content {
+    -fx-background-color: #f8fafc;
+    -fx-padding: 12px 16px;
 }
 
 .notification-code-text {
     -fx-font-family: "Consolas", "Courier New", monospace;
-    -fx-font-size: 12px;
-    -fx-text-fill: #e2e8f0;
+    -fx-font-size: 12.5px;
+    -fx-text-fill: #0f172a;
 }

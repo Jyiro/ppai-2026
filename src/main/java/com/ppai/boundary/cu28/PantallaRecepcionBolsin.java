@@ -45,6 +45,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
 
     // ── Paso 1: Bolsines por Recibir ──
     private VBox viewPaso1;
+    private Label lblCardSub;
     private TextField txtFiltroPrecinto;
     private ComboBox<ComisionMedica> cmbFiltroCMOrigen;
     private TableView<Bolsin> tblBolsines;
@@ -52,6 +53,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
     private Button btnSeleccionarBolsin;
     private VBox boxAlertaPaso1;
     private Label lblMensajeAlertaPaso1;
+    private boolean actualizandoFiltros;
 
     // ── Paso 2: Remito, Documentación y Opciones ──
     private VBox viewPaso2;
@@ -73,6 +75,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
     private VBox viewPaso3;
     private Label lblConfPrecinto;
     private Label lblConfCMOrigen;
+    private Label lblConfOpcionElegida;
     private Label lblConfRemito;
     private Label lblConfEstadoRemito;
     private VBox boxConfDocsList;
@@ -85,6 +88,13 @@ public class PantallaRecepcionBolsin extends BorderPane {
     private VBox viewPaso4;
     private Label lblResultadoTitulo;
     private Label lblResultadoSubtitulo;
+    private Label lblResBolsin;
+    private Label lblResRemito;
+    private Label lblResEstadoRemito;
+    private Label lblResEmpleadoFecha;
+    private Label lblEmailPara;
+    private Label lblEmailAsunto;
+    private Label lblEmailFecha;
     private TextArea txtCuerpoCorreoCU29;
     private Button btnNuevaRecepcion;
 
@@ -95,6 +105,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
     // ── Estado Transitorio de la Vista ──
     private Bolsin bolsinSeleccionadoEnTabla;
     private OpcionRecepcion opcionSeleccionadaActual;
+    private String ultimoBolsinRegistradoInfo;
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     public PantallaRecepcionBolsin(GestorRecepcionBolsin gestor) {
@@ -129,9 +140,18 @@ public class PantallaRecepcionBolsin extends BorderPane {
     }
 
     /**
-     * DS-CU28 paso 8: Muestra la Comisión Médica activa del usuario autenticado.
+     * DS-CU28 paso 8: Muestra la Comisión Médica activa y el usuario autenticado en el encabezado.
      */
     public void mostrarCM(ComisionMedica cm) {
+        if (gestor != null && gestor.getSesionActual() != null && gestor.getSesionActual().getUsuario() != null) {
+            Usuario usuario = gestor.getSesionActual().getUsuario();
+            String nombreEmpleado = gestor.getEmpleadoActual() != null ? gestor.getEmpleadoActual().getNombre() : "";
+            String textoUsuario = "Usuario: " + usuario.getUsername()
+                    + (nombreEmpleado != null && !nombreEmpleado.isEmpty() ? " (" + nombreEmpleado + ")" : "");
+            if (lblUsuarioActivo != null) {
+                lblUsuarioActivo.setText(textoUsuario);
+            }
+        }
         if (cm != null) {
             lblCmActiva.setText("CM Destino: " + cm.getNombre());
             actualizarStatus("Comisión Médica activa: " + cm.getNombre());
@@ -147,16 +167,48 @@ public class PantallaRecepcionBolsin extends BorderPane {
         this.listaBolsinesData.setAll(bolsines);
         tblBolsines.refresh();
 
-        // Actualizar opciones de CM Origen para el filtro
-        List<ComisionMedica> origenes = bolsines.stream()
-                .map(Bolsin::getCMOrigen)
-                .distinct()
-                .collect(Collectors.toList());
-        ObservableList<ComisionMedica> origenesList = FXCollections.observableArrayList(origenes);
-        cmbFiltroCMOrigen.setItems(origenesList);
+        if (lblCardSub != null && gestor != null) {
+            String cmNombre = gestor.getComisionMedicaEmpleado() != null
+                    ? gestor.getComisionMedicaEmpleado().getNombre()
+                    : "CM activa";
+            int totalSistema = gestor.getTodosBolsines() != null ? gestor.getTodosBolsines().size() : bolsines.size();
+            lblCardSub.setText("IteradorBolsin filtró " + bolsines.size() + " bolsín(es) en estado ENVIADO dirigidos a ["
+                    + cmNombre + "] (sobre " + totalSistema + " bolsines totales cargados en el sistema).");
+        }
+
+        // Actualizar opciones de CM Origen para el filtro (incluye catálogo completo para poder probar A2)
+        List<ComisionMedica> origenes = new ArrayList<>();
+        for (Bolsin b : bolsines) {
+            agregarSiNoExisteCM(origenes, b.getCMOrigen());
+        }
+        if (gestor != null && gestor.getComisionesMedicasFiltro() != null) {
+            for (ComisionMedica cmCatalogo : gestor.getComisionesMedicasFiltro()) {
+                agregarSiNoExisteCM(origenes, cmCatalogo);
+            }
+        }
+
+        actualizandoFiltros = true;
+        try {
+            ObservableList<ComisionMedica> origenesList = FXCollections.observableArrayList(origenes);
+            cmbFiltroCMOrigen.setItems(origenesList);
+        } finally {
+            actualizandoFiltros = false;
+        }
 
         ocultarAlertaPaso1();
         actualizarStatus("Bolsines en estado ENVIADO disponibles: " + bolsines.size());
+    }
+
+    private void agregarSiNoExisteCM(List<ComisionMedica> lista, ComisionMedica candidata) {
+        if (candidata == null) {
+            return;
+        }
+        for (ComisionMedica existente : lista) {
+            if (existente.getId() != null && existente.getId().equals(candidata.getId())) {
+                return;
+            }
+        }
+        lista.add(candidata);
     }
 
     /**
@@ -213,16 +265,18 @@ public class PantallaRecepcionBolsin extends BorderPane {
         if (bolsin != null) {
             this.bolsinSeleccionadoEnTabla = bolsin;
             lblDetallePrecinto.setText(bolsin.getNumeroPrecinto());
-            lblDetalleCMOrigen.setText(bolsin.getCMOrigen().getNombre());
-            lblDetalleFechaEnvio.setText(bolsin.getFechaEnvio().format(FORMATO_FECHA));
+            lblDetalleCMOrigen.setText("CM Origen: " + bolsin.getCMOrigen().getNombre());
+            lblDetalleFechaEnvio.setText("Fecha de Envío: " + bolsin.getFechaEnvio().format(FORMATO_FECHA));
         }
         lblDetalleNumeroRemito.setText(remito.getNumero());
         lblDetalleCantDocs.setText(String.valueOf(remito.getDetalles().size()));
 
-        // Cargar filas de documentación
+        // Cargar filas de documentación con refresco reactivo al tildar/destildar ¿Conforme?
         List<DocumentacionRow> rows = new ArrayList<>();
         for (DetalleRemito d : remito.buscarDocumentacion()) {
-            rows.add(new DocumentacionRow(d.getDocumentacion()));
+            DocumentacionRow row = new DocumentacionRow(d.getDocumentacion());
+            row.seleccionadaProperty().addListener((obs, oldVal, newVal) -> tblDocumentacion.refresh());
+            rows.add(row);
         }
         listaDocsData.setAll(rows);
         tblDocumentacion.refresh();
@@ -283,12 +337,24 @@ public class PantallaRecepcionBolsin extends BorderPane {
     public void solicitarConfirmacionSeleccion(Bolsin bolsin, Remito remito, OpcionRecepcion opcion, List<Documentacion> docsNoConformes) {
         lblConfPrecinto.setText(bolsin.getNumeroPrecinto());
         lblConfCMOrigen.setText(bolsin.getCMOrigen().getNombre());
+        if (lblConfOpcionElegida != null && opcion != null) {
+            lblConfOpcionElegida.setText("Opción " + opcion.getNumero() + ": " + opcion.getTitulo());
+        }
         lblConfRemito.setText(remito.getNumero());
-        lblConfEstadoRemito.setText(opcion.getImpactoRemito());
+        lblConfEstadoRemito.setText("Nuevo Estado: " + opcion.getImpactoRemito());
+        lblConfEstadoRemito.getStyleClass().removeAll("badge-recibido", "badge-parcial");
+        if (opcion.esFaltaDocumentacion() || opcion.esNoCorrespondeDestino()) {
+            lblConfEstadoRemito.getStyleClass().add("badge-parcial");
+        } else {
+            lblConfEstadoRemito.getStyleClass().add("badge-recibido");
+        }
 
         lblConfEmpleado.setText(gestor.getEmpleadoActual() != null ? gestor.getEmpleadoActual().getNombre() : "Juan Pérez");
         lblConfFechaHora.setText(java.time.LocalDateTime.now().format(FORMATO_FECHA));
-        lblConfDestinatarioCU29.setText(bolsin.getCMOrigen().getNombre() + " (notificación por correo)");
+
+        String cmOrigenNombre = bolsin.getCMOrigen().getNombre();
+        String emailOrigen = "despacho." + cmOrigenNombre.toLowerCase().replaceAll("[^a-z0-9]", "") + "@srt.gob.ar";
+        lblConfDestinatarioCU29.setText(cmOrigenNombre + " <" + emailOrigen + ">");
 
         // Desglose de documentos en confirmación
         boxConfDocsList.getChildren().clear();
@@ -296,12 +362,15 @@ public class PantallaRecepcionBolsin extends BorderPane {
             HBox itemBox = new HBox(10);
             itemBox.setAlignment(Pos.CENTER_LEFT);
 
-            Label lblTipo = new Label("[" + row.getTipo() + "]");
+            Label lblTipo = new Label("#" + row.getId() + " [" + row.getTipo() + "]");
             lblTipo.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
 
             Label lblAsunto = new Label(row.getAsunto());
             lblAsunto.setStyle("-fx-text-fill: #1e293b;");
             HBox.setHgrow(lblAsunto, Priority.ALWAYS);
+
+            Label lblEstadoPrevio = new Label(row.getEstadoActual() + "  ➔");
+            lblEstadoPrevio.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b;");
 
             Label lblNuevoEstado = new Label(row.getEstadoResultante(opcion));
             lblNuevoEstado.getStyleClass().add("badge");
@@ -316,7 +385,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
                 lblNuevoEstado.getStyleClass().add("badge-redirigir");
             }
 
-            itemBox.getChildren().addAll(lblTipo, lblAsunto, lblNuevoEstado);
+            itemBox.getChildren().addAll(lblTipo, lblAsunto, lblEstadoPrevio, lblNuevoEstado);
             boxConfDocsList.getChildren().add(itemBox);
         }
 
@@ -344,14 +413,68 @@ public class PantallaRecepcionBolsin extends BorderPane {
      */
     public void informarCorrectoEnvioNotificacion(NotificacionRecepcionBolsin notificacion) {
         if (notificacion != null) {
-            lblResultadoTitulo.setText("¡Recepción Registrada con Éxito!");
+            String fechaTexto = notificacion.getFechaHoraEnvio() != null
+                    ? notificacion.getFechaHoraEnvio().format(FORMATO_FECHA)
+                    : "";
+
+            lblResultadoTitulo.setText("¡Recepción Registrada con Éxito! (CU 28)");
             lblResultadoSubtitulo.setText("El bolsín " + notificacion.getNumeroPrecinto()
-                    + " se actualizó a estado 'Recibido en CM Destino' y se envió la notificación (CU 29).");
+                    + " pasó a 'Recibido en CM Destino' y se envió la notificación electrónica a "
+                    + notificacion.getDestinatarioCM() + " (<<includes>> CU 29).");
+
+            if (lblResBolsin != null) {
+                lblResBolsin.setText(notificacion.getNumeroPrecinto());
+            }
+            if (lblResRemito != null) {
+                lblResRemito.setText(notificacion.getNumeroRemito());
+            }
+            if (lblResEstadoRemito != null) {
+                lblResEstadoRemito.setText(notificacion.getEstadoRemito());
+                lblResEstadoRemito.getStyleClass().removeAll("badge-recibido", "badge-parcial");
+                if (notificacion.getEstadoRemito() != null
+                        && notificacion.getEstadoRemito().toLowerCase().contains("parcial")) {
+                    lblResEstadoRemito.getStyleClass().add("badge-parcial");
+                } else {
+                    lblResEstadoRemito.getStyleClass().add("badge-recibido");
+                }
+            }
+            if (lblResEmpleadoFecha != null) {
+                lblResEmpleadoFecha.setText(notificacion.getEmpleadoResponsable() + " • " + fechaTexto);
+            }
+            if (lblEmailPara != null) {
+                lblEmailPara.setText(notificacion.getDestinatarioCM() + " <" + notificacion.getEmailDestino() + ">");
+            }
+            if (lblEmailAsunto != null) {
+                lblEmailAsunto.setText("[Notificación de Recepción] Bolsín Precinto N° " + notificacion.getNumeroPrecinto());
+            }
+            if (lblEmailFecha != null) {
+                lblEmailFecha.setText(fechaTexto);
+            }
             txtCuerpoCorreoCU29.setText(notificacion.getCuerpoCorreo());
+            this.ultimoBolsinRegistradoInfo = "Bolsín " + notificacion.getNumeroPrecinto()
+                    + " (Remito " + notificacion.getNumeroRemito()
+                    + ") registrado en estado 'Recibido en CM Destino'; ya no figura como pendiente ENVIADO.";
         }
 
         irAPaso(4);
         actualizarStatus("Recepción registrada correctamente. Notificación CU 29 despachada.");
+
+        if (notificacion != null
+                && javafx.application.Platform.isFxApplicationThread()
+                && this.getScene() != null
+                && this.getScene().getWindow() != null
+                && this.getScene().getWindow().isShowing()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.initOwner(this.getScene().getWindow());
+            alert.setTitle("Recepción Registrada — CU 28");
+            alert.setHeaderText("✔ ¡Bolsín " + notificacion.getNumeroPrecinto() + " registrado con éxito!");
+            alert.setContentText(
+                    "Estado del Bolsín: Recibido en CM Destino\n"
+                    + "Estado del Remito (" + notificacion.getNumeroRemito() + "): " + notificacion.getEstadoRemito() + "\n"
+                    + "Notificación CU 29 enviada a: " + notificacion.getDestinatarioCM()
+                    + " (" + notificacion.getEmailDestino() + ")");
+            alert.showAndWait();
+        }
     }
 
     public void informarCorrectoEnvioNotificacion() {
@@ -364,6 +487,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
     public void cancelar() {
         this.bolsinSeleccionadoEnTabla = null;
         this.opcionSeleccionadaActual = null;
+        this.ultimoBolsinRegistradoInfo = null;
         gestor.cancelarRecepcion();
         irAPaso(1);
         actualizarStatus("Operación cancelada. Regresando a la lista de bolsines.");
@@ -373,10 +497,25 @@ public class PantallaRecepcionBolsin extends BorderPane {
      * Muestra una alerta informativa o de flujo alternativo (A1, A2, A6).
      */
     public void mostrarAlerta(String titulo, String mensaje) {
+        boxAlertaPaso1.getStyleClass().remove("alert-box-success");
+        if (!boxAlertaPaso1.getStyleClass().contains("alert-box-warning")) {
+            boxAlertaPaso1.getStyleClass().add("alert-box-warning");
+        }
         boxAlertaPaso1.setVisible(true);
         boxAlertaPaso1.setManaged(true);
         lblMensajeAlertaPaso1.setText("⚠ " + titulo + ": " + mensaje);
         actualizarStatus("Aviso: " + mensaje);
+    }
+
+    private void mostrarAvisoExitoPaso1(String mensaje) {
+        boxAlertaPaso1.getStyleClass().remove("alert-box-warning");
+        if (!boxAlertaPaso1.getStyleClass().contains("alert-box-success")) {
+            boxAlertaPaso1.getStyleClass().add("alert-box-success");
+        }
+        boxAlertaPaso1.setVisible(true);
+        boxAlertaPaso1.setManaged(true);
+        lblMensajeAlertaPaso1.setText("✔ " + mensaje);
+        actualizarStatus(mensaje);
     }
 
     private void ocultarAlertaPaso1() {
@@ -435,7 +574,9 @@ public class PantallaRecepcionBolsin extends BorderPane {
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
         // Chips informativos
-        this.lblUsuarioActivo = new Label("Usuario: " + gestor.getSesionActual().getUsuario().getUsername());
+        Usuario usrInicial = gestor.getSesionActual().getUsuario();
+        String nombreEmpInicial = usrInicial.getEmpleado() != null ? " (" + usrInicial.getEmpleado().getNombre() + ")" : "";
+        this.lblUsuarioActivo = new Label("Usuario: " + usrInicial.getUsername() + nombreEmpInicial);
         this.lblUsuarioActivo.getStyleClass().add("session-chip");
 
         this.lblCmActiva = new Label("CM Destino: " + gestor.getSesionActual().getUsuario().getCMEmpleado().getNombre());
@@ -452,7 +593,19 @@ public class PantallaRecepcionBolsin extends BorderPane {
         this.cmbEscenarioMock.setValue("Escenario 1: Comisión Médica Central (CMC)");
         this.cmbEscenarioMock.setOnAction(e -> {
             int esc = cmbEscenarioMock.getSelectionModel().getSelectedIndex() + 1;
+            actualizandoFiltros = true;
+            try {
+                if (txtFiltroPrecinto != null) {
+                    txtFiltroPrecinto.clear();
+                }
+                if (cmbFiltroCMOrigen != null) {
+                    cmbFiltroCMOrigen.setValue(null);
+                }
+            } finally {
+                actualizandoFiltros = false;
+            }
             gestor.cargarEscenario(esc);
+            irAPaso(1);
         });
 
         mockControlBox.getChildren().addAll(lblMockTag, cmbEscenarioMock);
@@ -556,8 +709,8 @@ public class PantallaRecepcionBolsin extends BorderPane {
         VBox cardTitles = new VBox(2);
         Label lblCardTitle = new Label("Bolsines en Estado ENVIADO");
         lblCardTitle.getStyleClass().add("card-title");
-        Label lblCardSub = new Label("Seleccione del listado el bolsín recibido para inspeccionar su remito y documentaciones.");
-        lblCardSub.getStyleClass().add("card-subtitle");
+        this.lblCardSub = new Label("Seleccione del listado el bolsín recibido para inspeccionar su remito y documentaciones.");
+        this.lblCardSub.getStyleClass().add("card-subtitle");
         cardTitles.getChildren().addAll(lblCardTitle, lblCardSub);
         cardHeader.getChildren().add(cardTitles);
 
@@ -583,8 +736,13 @@ public class PantallaRecepcionBolsin extends BorderPane {
         Button btnLimpiarFiltros = new Button("Limpiar");
         btnLimpiarFiltros.getStyleClass().add("btn-secondary");
         btnLimpiarFiltros.setOnAction(e -> {
-            txtFiltroPrecinto.clear();
-            cmbFiltroCMOrigen.setValue(null);
+            actualizandoFiltros = true;
+            try {
+                txtFiltroPrecinto.clear();
+                cmbFiltroCMOrigen.setValue(null);
+            } finally {
+                actualizandoFiltros = false;
+            }
             mostrarBolsines(gestor.getBolsinesEnviados());
         });
 
@@ -606,27 +764,32 @@ public class PantallaRecepcionBolsin extends BorderPane {
 
         TableColumn<Bolsin, String> colPrecinto = new TableColumn<>("Nº de Precinto");
         colPrecinto.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getNumeroPrecinto()));
-        colPrecinto.setPrefWidth(160);
+        colPrecinto.setPrefWidth(120);
         colPrecinto.setStyle("-fx-font-weight: bold;");
 
         TableColumn<Bolsin, String> colOrigen = new TableColumn<>("CM de Origen");
         colOrigen.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getCMOrigen().getNombre()));
-        colOrigen.setPrefWidth(260);
+        colOrigen.setPrefWidth(210);
+
+        TableColumn<Bolsin, String> colDestino = new TableColumn<>("CM de Destino");
+        colDestino.setCellValueFactory(data -> new SimpleStringProperty(
+                data.getValue().getCmDestino() != null ? data.getValue().getCmDestino().getNombre() : "-"));
+        colDestino.setPrefWidth(230);
 
         TableColumn<Bolsin, String> colRemito = new TableColumn<>("Nº Remito");
         colRemito.setCellValueFactory(data -> new SimpleStringProperty(
                 data.getValue().getRemito() != null ? data.getValue().getRemito().getNumero() : "S/R"));
-        colRemito.setPrefWidth(160);
+        colRemito.setPrefWidth(135);
 
         TableColumn<Bolsin, String> colFecha = new TableColumn<>("Fecha de Envío");
         colFecha.setCellValueFactory(data -> new SimpleStringProperty(
                 data.getValue().getFechaEnvio().format(FORMATO_FECHA)));
-        colFecha.setPrefWidth(160);
+        colFecha.setPrefWidth(135);
 
         TableColumn<Bolsin, String> colEstado = new TableColumn<>("Estado Actual");
         colEstado.setCellValueFactory(data -> new SimpleStringProperty(
                 data.getValue().getEstadoActual() != null ? data.getValue().getEstadoActual().getNombreDisplay() : "Enviado"));
-        colEstado.setPrefWidth(160);
+        colEstado.setPrefWidth(120);
         colEstado.setCellFactory(column -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -643,7 +806,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
             }
         });
 
-        tblBolsines.getColumns().addAll(colPrecinto, colOrigen, colRemito, colFecha, colEstado);
+        tblBolsines.getColumns().addAll(colPrecinto, colOrigen, colDestino, colRemito, colFecha, colEstado);
 
         tblBolsines.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             this.bolsinSeleccionadoEnTabla = newVal;
@@ -674,6 +837,10 @@ public class PantallaRecepcionBolsin extends BorderPane {
     }
 
     private void aplicarFiltros() {
+        if (actualizandoFiltros) {
+            return;
+        }
+        ocultarAlertaPaso1();
         String precinto = txtFiltroPrecinto.getText();
         ComisionMedica origen = cmbFiltroCMOrigen.getValue();
         List<Bolsin> filtrados = gestor.filtrarBolsines(precinto, origen);
@@ -725,8 +892,18 @@ public class PantallaRecepcionBolsin extends BorderPane {
         lblT3Sub.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569;");
         colDocsInfo.getChildren().addAll(lblT3, lblDetalleCantDocs, lblT3Sub);
 
+        VBox colIteratorInfo = new VBox(4);
+        Label lblT4 = new Label("RECORRIDO ITERATOR");
+        lblT4.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+        Label lblT4Val = new Label("IteradorRemito → IteradorDetalleRemito");
+        lblT4Val.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        Label lblT4Sub = new Label("Lectura desacoplada (GoF)");
+        lblT4Sub.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569;");
+        colIteratorInfo.getChildren().addAll(lblT4, lblT4Val, lblT4Sub);
+
         summaryBox.getChildren().addAll(colBolsin, new Separator(javafx.geometry.Orientation.VERTICAL),
-                colRemito, new Separator(javafx.geometry.Orientation.VERTICAL), colDocsInfo);
+                colRemito, new Separator(javafx.geometry.Orientation.VERTICAL),
+                colDocsInfo, new Separator(javafx.geometry.Orientation.VERTICAL), colIteratorInfo);
 
         // 2. Tabla de Documentación con Checkbox reactivo
         VBox tableDocsSection = new VBox(8);
@@ -912,6 +1089,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
                     card.getStyleClass().add("option-card-selected");
                     this.opcionSeleccionadaActual = opc;
                     btnContinuarConfirmacion.setDisable(false);
+                    actualizarAvisoOpcionPaso2(opc);
                     tblDocumentacion.refresh();
                 } else {
                     card.getStyleClass().remove("option-card-selected");
@@ -924,6 +1102,28 @@ public class PantallaRecepcionBolsin extends BorderPane {
         // Seleccionar Opción 1 por defecto
         if (!radioOpcionesList.isEmpty()) {
             radioOpcionesList.get(0).setSelected(true);
+            if (!opciones.isEmpty()) {
+                actualizarAvisoOpcionPaso2(opciones.get(0));
+            }
+        }
+    }
+
+    private void actualizarAvisoOpcionPaso2(OpcionRecepcion opc) {
+        if (lblAvisoDocsNoConformes == null || opc == null) {
+            return;
+        }
+        if (opc.esContenidoIgual()) {
+            lblAvisoDocsNoConformes.setText("✔ Opción 1 (Flujo Básico): Todos los documentos del remito pasarán a 'Recibida y aceptada'.");
+            lblAvisoDocsNoConformes.setStyle("-fx-font-size: 11px; -fx-text-fill: #047857; -fx-font-weight: bold;");
+        } else if (opc.esFaltaDocumentacion()) {
+            lblAvisoDocsNoConformes.setText("⚠ Flujo A3: Desmarque en la columna '¿Conforme?' los documentos que NO llegaron físicamente (pasarán a 'No recibida').");
+            lblAvisoDocsNoConformes.setStyle("-fx-font-size: 11px; -fx-text-fill: #b45309; -fx-font-weight: bold;");
+        } else if (opc.esNoCorrespondeDestino()) {
+            lblAvisoDocsNoConformes.setText("⚠ Flujo A4: Desmarque en la columna '¿Conforme?' los documentos que NO corresponden a esta CM (pasarán a 'Recibida y rechazada').");
+            lblAvisoDocsNoConformes.setStyle("-fx-font-size: 11px; -fx-text-fill: #b91c1c; -fx-font-weight: bold;");
+        } else if (opc.esRedirigirAOtraArea()) {
+            lblAvisoDocsNoConformes.setText("↪ Flujo A5 (Solo CMC): Todos los documentos del remito pasarán a 'Para redirigir' a otra área interna.");
+            lblAvisoDocsNoConformes.setStyle("-fx-font-size: 11px; -fx-text-fill: #1d4ed8; -fx-font-weight: bold;");
         }
     }
 
@@ -962,7 +1162,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
         t0.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
         this.lblConfPrecinto = new Label();
         this.lblConfPrecinto.setStyle("-fx-font-weight: bold; -fx-text-fill: #0f172a;");
-        Label t0Estado = new Label("Nuevo Estado: Recibido en CM Destino");
+        Label t0Estado = new Label("Enviado ➔ Nuevo Estado: Recibido en CM Destino");
         t0Estado.getStyleClass().addAll("badge", "badge-recibido");
         grid.add(t0, 0, 0);
         grid.add(lblConfPrecinto, 1, 0);
@@ -975,35 +1175,43 @@ public class PantallaRecepcionBolsin extends BorderPane {
         grid.add(t1, 0, 1);
         grid.add(lblConfCMOrigen, 1, 1);
 
-        // Fila 2: Remito
+        // Fila 2: Opción elegida
+        Label tOpc = new Label("Opción Seleccionada:");
+        tOpc.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
+        this.lblConfOpcionElegida = new Label();
+        this.lblConfOpcionElegida.setStyle("-fx-font-weight: bold; -fx-text-fill: #1d4ed8;");
+        grid.add(tOpc, 0, 2);
+        grid.add(lblConfOpcionElegida, 1, 2, 2, 1);
+
+        // Fila 3: Remito
         Label t2 = new Label("Remito Asociado:");
         t2.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
         this.lblConfRemito = new Label();
         this.lblConfEstadoRemito = new Label();
         this.lblConfEstadoRemito.getStyleClass().addAll("badge", "badge-recibido");
-        grid.add(t2, 0, 2);
-        grid.add(lblConfRemito, 1, 2);
-        grid.add(lblConfEstadoRemito, 2, 2);
+        grid.add(t2, 0, 3);
+        grid.add(lblConfRemito, 1, 3);
+        grid.add(lblConfEstadoRemito, 2, 3);
 
-        // Fila 3: Empleado responsable
+        // Fila 4: Empleado responsable
         Label t3 = new Label("Empleado Responsable:");
         t3.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
         this.lblConfEmpleado = new Label();
         this.lblConfFechaHora = new Label();
         this.lblConfFechaHora.setStyle("-fx-text-fill: #64748b;");
-        grid.add(t3, 0, 3);
-        grid.add(lblConfEmpleado, 1, 3);
-        grid.add(lblConfFechaHora, 2, 3);
+        grid.add(t3, 0, 4);
+        grid.add(lblConfEmpleado, 1, 4);
+        grid.add(lblConfFechaHora, 2, 4);
 
-        // Fila 4: Notificación CU 29
+        // Fila 5: Notificación CU 29
         Label t4 = new Label("Notificación (CU 29):");
         t4.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
         this.lblConfDestinatarioCU29 = new Label();
         Label t4Badge = new Label("Se enviará email a la CM Origen");
         t4Badge.getStyleClass().addAll("badge", "badge-enviado");
-        grid.add(t4, 0, 4);
-        grid.add(lblConfDestinatarioCU29, 1, 4);
-        grid.add(t4Badge, 2, 4);
+        grid.add(t4, 0, 5);
+        grid.add(lblConfDestinatarioCU29, 1, 5);
+        grid.add(t4Badge, 2, 5);
 
         // Desglose de Documentaciones
         Label lblDocsSub = new Label("Detalle de Actualización de Documentaciones:");
@@ -1030,7 +1238,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
         btnRechazarA6.getStyleClass().add("btn-danger");
         btnRechazarA6.setOnAction(e -> tomarConfirmacionSeleccion(false));
 
-        this.btnConfirmarRecepcion = new Button("✔ Confirmar Recepción de Bolsín");
+        this.btnConfirmarRecepcion = new Button("✔ Confirmar Recepción y Enviar Notificación (CU 29)");
         this.btnConfirmarRecepcion.getStyleClass().add("btn-success");
         this.btnConfirmarRecepcion.setOnAction(e -> tomarConfirmacionSeleccion(true));
 
@@ -1049,7 +1257,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
         VBox root = new VBox(16);
         root.setAlignment(Pos.TOP_CENTER);
 
-        VBox card = new VBox(16);
+        VBox card = new VBox(14);
         card.getStyleClass().add("card-panel");
         VBox.setVgrow(card, Priority.ALWAYS);
 
@@ -1057,32 +1265,119 @@ public class PantallaRecepcionBolsin extends BorderPane {
         HBox successBanner = new HBox(16);
         successBanner.setAlignment(Pos.CENTER_LEFT);
         successBanner.getStyleClass().addAll("alert-box", "alert-box-success");
-        successBanner.setPadding(new Insets(16));
+        successBanner.setPadding(new Insets(14, 16, 14, 16));
 
         Label lblCheck = new Label("✔");
         lblCheck.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #059669;");
 
         VBox bannerText = new VBox(2);
-        this.lblResultadoTitulo = new Label("¡Recepción Registrada con Éxito!");
+        this.lblResultadoTitulo = new Label("¡Recepción Registrada con Éxito! (CU 28)");
         this.lblResultadoTitulo.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #065f46;");
-        this.lblResultadoSubtitulo = new Label("Los estados fueron actualizados en la base de datos.");
+        this.lblResultadoSubtitulo = new Label("Los estados fueron actualizados y se transmitió la notificación por correo (CU 29).");
         this.lblResultadoSubtitulo.setStyle("-fx-font-size: 13px; -fx-text-fill: #047857;");
         bannerText.getChildren().addAll(lblResultadoTitulo, lblResultadoSubtitulo);
 
         successBanner.getChildren().addAll(lblCheck, bannerText);
 
-        // Cuadro de Previsualización de Correo Electrónico CU 29
-        VBox previewBox = new VBox(8);
-        Label lblEmailTag = new Label("Comprobante de Notificación Electrónica (CU 29 - Servidor de Correo):");
-        lblEmailTag.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #1e293b;");
+        // Bloque 1: Resumen de Trazabilidad Asentada (CU 28)
+        HBox resSummaryBox = new HBox(20);
+        resSummaryBox.setAlignment(Pos.CENTER_LEFT);
+        resSummaryBox.setPadding(new Insets(12, 16, 12, 16));
+        resSummaryBox.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px;");
+
+        VBox resColBolsin = new VBox(4);
+        Label lblRBTag = new Label("BOLSÍN RECEPCIONADO");
+        lblRBTag.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+        HBox resBolsinRow = new HBox(8);
+        resBolsinRow.setAlignment(Pos.CENTER_LEFT);
+        this.lblResBolsin = new Label("PREC-XXXX");
+        this.lblResBolsin.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        Label badgeResBolsin = new Label("Recibido en CM Destino");
+        badgeResBolsin.getStyleClass().addAll("badge", "badge-recibido");
+        resBolsinRow.getChildren().addAll(lblResBolsin, badgeResBolsin);
+        resColBolsin.getChildren().addAll(lblRBTag, resBolsinRow);
+
+        VBox resColRemito = new VBox(4);
+        Label lblRRTag = new Label("REMITO ACTUALIZADO");
+        lblRRTag.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+        HBox resRemitoRow = new HBox(8);
+        resRemitoRow.setAlignment(Pos.CENTER_LEFT);
+        this.lblResRemito = new Label("REM-XXXX");
+        this.lblResRemito.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        this.lblResEstadoRemito = new Label("Recibido y aceptado");
+        this.lblResEstadoRemito.getStyleClass().addAll("badge", "badge-recibido");
+        resRemitoRow.getChildren().addAll(lblResRemito, lblResEstadoRemito);
+        resColRemito.getChildren().addAll(lblRRTag, resRemitoRow);
+
+        VBox resColResp = new VBox(4);
+        Label lblRRespTag = new Label("RESPONSABLE Y FECHA/HORA");
+        lblRRespTag.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+        this.lblResEmpleadoFecha = new Label("-");
+        this.lblResEmpleadoFecha.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #1e293b;");
+        resColResp.getChildren().addAll(lblRRespTag, lblResEmpleadoFecha);
+
+        resSummaryBox.getChildren().addAll(resColBolsin, new Separator(javafx.geometry.Orientation.VERTICAL),
+                resColRemito, new Separator(javafx.geometry.Orientation.VERTICAL), resColResp);
+
+        // Bloque 2: Comprobante de Correo Electrónico Enviado (CU 29)
+        VBox emailCard = new VBox(10);
+        emailCard.setPadding(new Insets(14, 16, 14, 16));
+        emailCard.setStyle("-fx-background-color: #ffffff; -fx-background-radius: 8px; -fx-border-color: #cbd5e1; -fx-border-radius: 8px;");
+        VBox.setVgrow(emailCard, Priority.ALWAYS);
+
+        HBox emailCardHeader = new HBox(12);
+        emailCardHeader.setAlignment(Pos.CENTER_LEFT);
+        Label lblEmailTag = new Label("✉ NOTIFICACIÓN ELECTRÓNICA CU 29 — SERVIDOR DE CORREO");
+        lblEmailTag.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #0f172a;");
+        Region spacerEmail = new Region();
+        HBox.setHgrow(spacerEmail, Priority.ALWAYS);
+        Label badgeCorreoEnviado = new Label("✔ CORREO ENVIADO EXITOSAMENTE");
+        badgeCorreoEnviado.getStyleClass().addAll("badge", "badge-recibido");
+        emailCardHeader.getChildren().addAll(lblEmailTag, spacerEmail, badgeCorreoEnviado);
+
+        GridPane emailMetaGrid = new GridPane();
+        emailMetaGrid.setHgap(14);
+        emailMetaGrid.setVgap(6);
+        emailMetaGrid.setPadding(new Insets(8, 12, 8, 12));
+        emailMetaGrid.setStyle("-fx-background-color: #f1f5f9; -fx-background-radius: 6px; -fx-border-color: #e2e8f0; -fx-border-radius: 6px;");
+
+        Label lblDeKey = new Label("De:");
+        lblDeKey.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
+        Label lblDeVal = new Label("Sistema Central de Bolsines — SRT (CU 29)");
+        lblDeVal.setStyle("-fx-text-fill: #0f172a;");
+
+        Label lblParaKey = new Label("Para (CM Origen):");
+        lblParaKey.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
+        this.lblEmailPara = new Label("-");
+        this.lblEmailPara.setStyle("-fx-font-weight: bold; -fx-text-fill: #1d4ed8;");
+
+        Label lblAsuntoKey = new Label("Asunto:");
+        lblAsuntoKey.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
+        this.lblEmailAsunto = new Label("-");
+        this.lblEmailAsunto.setStyle("-fx-font-weight: bold; -fx-text-fill: #0f172a;");
+
+        Label lblFechaKey = new Label("Fecha de envío:");
+        lblFechaKey.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
+        this.lblEmailFecha = new Label("-");
+        this.lblEmailFecha.setStyle("-fx-text-fill: #334155;");
+
+        emailMetaGrid.add(lblDeKey, 0, 0);
+        emailMetaGrid.add(lblDeVal, 1, 0);
+        emailMetaGrid.add(lblParaKey, 0, 1);
+        emailMetaGrid.add(lblEmailPara, 1, 1);
+        emailMetaGrid.add(lblAsuntoKey, 0, 2);
+        emailMetaGrid.add(lblEmailAsunto, 1, 2);
+        emailMetaGrid.add(lblFechaKey, 0, 3);
+        emailMetaGrid.add(lblEmailFecha, 1, 3);
 
         this.txtCuerpoCorreoCU29 = new TextArea();
         this.txtCuerpoCorreoCU29.setEditable(false);
+        this.txtCuerpoCorreoCU29.setWrapText(true);
         this.txtCuerpoCorreoCU29.getStyleClass().addAll("notification-preview-box", "notification-code-text");
-        this.txtCuerpoCorreoCU29.setPrefRowCount(10);
+        this.txtCuerpoCorreoCU29.setPrefRowCount(9);
         VBox.setVgrow(txtCuerpoCorreoCU29, Priority.ALWAYS);
 
-        previewBox.getChildren().addAll(lblEmailTag, txtCuerpoCorreoCU29);
+        emailCard.getChildren().addAll(emailCardHeader, emailMetaGrid, txtCuerpoCorreoCU29);
 
         // Botón para reiniciar flujo
         HBox actionsBar = new HBox(12);
@@ -1090,11 +1385,18 @@ public class PantallaRecepcionBolsin extends BorderPane {
 
         this.btnNuevaRecepcion = new Button("↻ Registrar Nueva Recepción de Bolsín");
         this.btnNuevaRecepcion.getStyleClass().add("btn-primary");
-        this.btnNuevaRecepcion.setOnAction(e -> tomarOpcionRegistrarRecepcionBolsin());
+        this.btnNuevaRecepcion.setOnAction(e -> {
+            String avisoPendiente = this.ultimoBolsinRegistradoInfo;
+            this.ultimoBolsinRegistradoInfo = null;
+            tomarOpcionRegistrarRecepcionBolsin();
+            if (avisoPendiente != null) {
+                mostrarAvisoExitoPaso1(avisoPendiente);
+            }
+        });
 
         actionsBar.getChildren().add(btnNuevaRecepcion);
 
-        card.getChildren().addAll(successBanner, previewBox, actionsBar);
+        card.getChildren().addAll(successBanner, resSummaryBox, emailCard, actionsBar);
         root.getChildren().add(card);
         return root;
     }

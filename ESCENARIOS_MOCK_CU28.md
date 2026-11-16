@@ -25,14 +25,19 @@ CM destino: `CMJ N° 7 - Rosario`
 
 Este escenario sirve para validar que la opción 4 se muestre como solo aplicable a CMC desde la pantalla.
 
-## Bolsines precargados
+## Bolsines precargados (pool global del sistema — 7 bolsines)
 
-| Precinto | Remito | CM origen | Destino | Documentación | Escenario de prueba |
-|---|---|---|---|---:|---|
-| `PREC-7041` | `REM-2026-00458` | Córdoba Capital | CM del usuario activo | 2 docs | Flujo básico, opción 1 |
-| `PREC-8820` | `REM-2026-00892` | Mendoza | CM del usuario activo | 4 docs | Alternativos A3 y A4 |
-| `PREC-9150` | `REM-2026-01204` | La Plata | CM del usuario activo | 1 doc | Alternativo A5 si destino es CMC |
-| `PREC-9999` | `REM-2026-99999` | Rosario | Salta | 1 doc | Control negativo: no debe aparecer en la lista |
+`RepositorioMockBolsines` carga el pool completo de 7 bolsines y deja que **`IteradorBolsin`** filtre dinámicamente según la `CM` del usuario logueado y el estado `ENVIADO`:
+
+| Precinto | Remito | CM origen | CM destino | Estado inicial | Documentación | Escenario / rol de prueba |
+|---|---|---|---|---|---|---|
+| `PREC-7041` | `REM-2026-00458` | Córdoba Capital | `Comisión Médica Central (CMC) - CABA` | `ENVIADO` | 2 docs | Visible en **Escenario 1 (CMC)**: Flujo básico, opción 1 |
+| `PREC-8820` | `REM-2026-00892` | Mendoza | `Comisión Médica Central (CMC) - CABA` | `ENVIADO` | 4 docs | Visible en **Escenario 1 (CMC)**: Alternativos A3 y A4 |
+| `PREC-9150` | `REM-2026-01204` | La Plata | `Comisión Médica Central (CMC) - CABA` | `ENVIADO` | 1 doc | Visible en **Escenario 1 (CMC)**: Alternativo A5 (redirigir en CMC) |
+| `PREC-6015` | `REM-2026-02110` | Santa Fe Capital | `CMJ N° 7 - Rosario` | `ENVIADO` | 2 docs | Visible en **Escenario 2 (Rosario)**: Recepción regional (opción 4 bloqueada) |
+| `PREC-6088` | `REM-2026-02145` | CMC - CABA | `CMJ N° 7 - Rosario` | `ENVIADO` | 3 docs | Visible en **Escenario 2 (Rosario)**: Alternativos A3 / A4 en regional |
+| `PREC-9999` | `REM-2026-99999` | Rosario | `CMJ N° 99 - Salta` | `ENVIADO` | 1 doc | **Control negativo por destino**: excluido por `IteradorBolsin` en ambos escenarios |
+| `PREC-5500` | `REM-2026-00112` | Córdoba Capital | `Comisión Médica Central (CMC) - CABA` | `RECIBIDO_EN_CM_DESTINO` | 1 doc | **Control negativo por estado**: excluido por `IteradorBolsin` (no está `ENVIADO`) |
 
 Nota de alcance: los mocks actuales usan un remito por bolsín. La ERS y la descripción del caso admiten uno o más remitos por bolsín, por lo que falta un escenario de prueba con varios remitos asociados al mismo bolsín si el diagrama de clases de diseño mantiene esa multiplicidad.
 

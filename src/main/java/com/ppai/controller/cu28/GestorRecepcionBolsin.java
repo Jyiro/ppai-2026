@@ -170,9 +170,12 @@ public class GestorRecepcionBolsin implements IAgregado {
                     .filter(b -> b.getNumeroPrecinto().toLowerCase().contains(f))
                     .collect(Collectors.toList());
 
-            if (filtrados.isEmpty() && pantalla != null) {
-                pantalla.mostrarAlerta("Flujo Alternativo A1",
-                        "No se encuentra bolsín con el número de precinto ingresado: '" + filtroPrecinto + "'.");
+            if (filtrados.isEmpty()) {
+                if (pantalla != null) {
+                    pantalla.mostrarAlerta("Flujo Alternativo A1",
+                            "No se encuentra bolsín con el número de precinto ingresado: '" + filtroPrecinto + "'.");
+                }
+                return filtrados;
             }
         }
 
@@ -354,8 +357,11 @@ public class GestorRecepcionBolsin implements IAgregado {
         // DS-CU28 paso 24: Capturar fecha y hora actual
         getFechaHoraActual();
 
-        // DS-CU28 pasos 25-30: Actualizar estados de Bolsín, Remito y Documentaciones
+        // DS-CU28 pasos 25-30: Actualizar estados de Bolsín
         actualizarEstadoBolsin();
+
+        // DS-CU28 pasos 39-40: Actualizar estados de Remitos y Documentaciones
+        actualizarRemitoYDocumentacion();
 
         // DS-CU28 pasos 31-32: Notificar recepción (CU 29)
         notificarRecepcion();
@@ -414,7 +420,7 @@ public class GestorRecepcionBolsin implements IAgregado {
     }
 
     /**
-     * DS-CU28 pasos 25-30 y loop sec. 8: Delega la actualización de estados según la regla de negocio.
+     * DS-CU28 pasos 25-30: Delega la actualización de estado del bolsín.
      */
     public void actualizarEstadoBolsin() {
         if (bolsinSeleccionado == null || estadoRecibidoCMDestino == null) {
@@ -424,15 +430,27 @@ public class GestorRecepcionBolsin implements IAgregado {
 
         // 1. Actualizar Bolsín -> Siempre "Recibido en CM destino" (+ fecha/hora + empleado)
         bolsinSeleccionado.marcarRecibido(estadoRecibidoCMDestino, fechaHoraActual, empleadoActual);
+    }
 
-        // 2. Actualizar Remito y Documentaciones según opción elegida
-        if (remitoSeleccionado != null) {
-            if (opcionSeleccionada == null || opcionSeleccionada.esContenidoIgual()) {
-                // Opción 1: Orquestador único aceptar() en Remito según indicación docente
+    /**
+     * DS-CU28 pasos 39-40 y loop sec. 8: Delega la actualización de remitos y documentaciones.
+     * En el flujo básico (Opción 1), delega en bolsinSeleccionado.actualizarRemitoYDocumentacion(...)
+     * conforme a la especificación estricta de message.md.
+     */
+    public void actualizarRemitoYDocumentacion() {
+        if (bolsinSeleccionado == null) {
+            return;
+        }
+
+        if (opcionSeleccionada == null || opcionSeleccionada.esContenidoIgual()) {
+            // Opción 1: Orquestador único en Bolsin -> Remito -> DetalleRemito -> Documentacion
+            if (remitoSeleccionado != null) {
                 remitoSeleccionado.marcarRecibidoYAceptado(estadoRemitoRecibidoAceptado);
-                remitoSeleccionado.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
-            } else if (opcionSeleccionada.esFaltaDocumentacion()) {
-                // Opción 2 (A3): Remito a Recibido y aceptado parcial; docs faltantes a No recibida, demás a Recibida y aceptada
+            }
+            bolsinSeleccionado.actualizarRemitoYDocumentacion(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
+        } else if (opcionSeleccionada.esFaltaDocumentacion()) {
+            // Opción 2 (A3): Remito a Recibido y aceptado parcial; docs faltantes a No recibida, demás a Recibida y aceptada
+            if (remitoSeleccionado != null) {
                 remitoSeleccionado.marcarRecibidoYAceptadoParcial(estadoRemitoRecibidoAceptadoParcial);
                 for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
                     Documentacion doc = detalle.getDocumentacion();
@@ -442,8 +460,10 @@ public class GestorRecepcionBolsin implements IAgregado {
                         doc.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
                     }
                 }
-            } else if (opcionSeleccionada.esNoCorrespondeDestino()) {
-                // Opción 3 (A4): Remito a Recibido y aceptado parcial; erróneas a Recibida y rechazada, demás a Recibida y aceptada
+            }
+        } else if (opcionSeleccionada.esNoCorrespondeDestino()) {
+            // Opción 3 (A4): Remito a Recibido y aceptado parcial; erróneas a Recibida y rechazada, demás a Recibida y aceptada
+            if (remitoSeleccionado != null) {
                 remitoSeleccionado.marcarRecibidoYAceptadoParcial(estadoRemitoRecibidoAceptadoParcial);
                 for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
                     Documentacion doc = detalle.getDocumentacion();
@@ -453,8 +473,10 @@ public class GestorRecepcionBolsin implements IAgregado {
                         doc.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
                     }
                 }
-            } else if (opcionSeleccionada.esRedirigirAOtraArea()) {
-                // Opción 4 (A5): Remito a Recibido y aceptado; docs a Para redirigir
+            }
+        } else if (opcionSeleccionada.esRedirigirAOtraArea()) {
+            // Opción 4 (A5): Remito a Recibido y aceptado; docs a Para redirigir
+            if (remitoSeleccionado != null) {
                 remitoSeleccionado.marcarRecibidoYAceptado(estadoRemitoRecibidoAceptado);
                 for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
                     Documentacion doc = detalle.getDocumentacion();
@@ -590,6 +612,14 @@ public class GestorRecepcionBolsin implements IAgregado {
 
     public List<Bolsin> getBolsinesEnviados() {
         return bolsinesEnviados;
+    }
+
+    public List<Bolsin> getTodosBolsines() {
+        return todosBolsines;
+    }
+
+    public List<ComisionMedica> getComisionesMedicasFiltro() {
+        return repositorioMockBolsines.obtenerComisionesMedicasOrigenCatalogo();
     }
 
     public Bolsin getBolsinSeleccionado() {
