@@ -1,10 +1,22 @@
 package com.ppai.domain.model.cu28;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+
+import java.util.Objects;
+
 /**
  * Entidad Estado — CU 28: Registrar Recepción de Bolsín.
  * Estado polivalente para Bolsín, Remito o Documentación.
  * (Punto de extensión: Patrón State en domain/state/cu28/)
  */
+@Entity
+@Table(name = "estado", uniqueConstraints = @UniqueConstraint(columnNames = {"nombre", "ambito"}))
 public class Estado {
 
     public static final String AMBITO_BOLSIN = "BOLSIN";
@@ -20,12 +32,26 @@ public class Estado {
     public static final String NOMBRE_PARA_REDIRIGIR = "PARA_REDIRIGIR";
     public static final String NOMBRE_EN_BOLSIN_ENVIADO = "EN_BOLSIN_ENVIADO";
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "nombre", nullable = false)
     private String nombre;
+
+    @Column(name = "ambito", nullable = false)
     private String ambito;
+
+    protected Estado() {
+    }
 
     public Estado(String nombre, String ambito) {
         this.nombre = nombre;
         this.ambito = ambito;
+    }
+
+    public Long getId() {
+        return id;
     }
 
     /** DS-CU28 loop sec. 2: Verifica si es estado ENVIADO de Bolsín. */
@@ -100,6 +126,18 @@ public class Estado {
             case NOMBRE_EN_BOLSIN_ENVIADO -> "En bolsín enviado";
             default -> nombre.replace("_", " ");
         };
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Estado that)) return false;
+        return Objects.equals(nombre, that.nombre) && Objects.equals(ambito, that.ambito);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nombre, ambito);
     }
 
     @Override

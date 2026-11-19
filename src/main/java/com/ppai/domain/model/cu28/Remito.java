@@ -3,6 +3,18 @@ package com.ppai.domain.model.cu28;
 import com.ppai.iterator.IAgregado;
 import com.ppai.iterator.IIterador;
 import com.ppai.iterator.IteradorDetalleRemito;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderColumn;
+import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -15,15 +27,36 @@ import java.util.List;
  *
  * NOTA DE DISEÑO: No utiliza ni extiende java.util.Iterable.
  */
+@Entity
+@Table(name = "remito")
 public class Remito implements IAgregado {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "numero", nullable = false, unique = true)
     private String numero;
-    private List<DetalleRemito> detalles;
+
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
+    @JoinColumn(name = "remito_id")
+    @OrderColumn(name = "orden")
+    private List<DetalleRemito> detalles = new ArrayList<>();
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "estado_id")
     private Estado estado;
+
+    protected Remito() {
+    }
 
     public Remito(String numero) {
         this.numero = numero;
         this.detalles = new ArrayList<>();
+    }
+
+    public Long getId() {
+        return id;
     }
 
     /** DS-CU28 loop sec. 4: Retorna el número de remito. */
@@ -75,7 +108,6 @@ public class Remito implements IAgregado {
 
     /** DS-CU28 loop sec. 8: Orquesta la aceptación en cada detalle de remito con empleado (orquestador único). */
     public void aceptar(Estado estadoRecibidoYAceptado, LocalDateTime fechaHoraActual, Empleado empleado) {
-        this.estado = estadoRecibidoYAceptado;
         for (DetalleRemito detalle : detalles) {
             detalle.aceptar(estadoRecibidoYAceptado, fechaHoraActual, empleado);
         }

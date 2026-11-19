@@ -3,10 +3,24 @@ package com.ppai.domain.model.cu28;
 import com.ppai.iterator.IAgregado;
 import com.ppai.iterator.IIterador;
 import com.ppai.iterator.IteradorRemito;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderColumn;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Entidad Bolsin — CU 28: Registrar Recepción de Bolsín.
@@ -15,14 +29,40 @@ import java.util.List;
  *
  * NOTA DE DISEÑO: No utiliza ni extiende java.util.Iterable.
  */
+@Entity
+@Table(name = "bolsin")
 public class Bolsin implements IAgregado {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "numero_precinto", nullable = false, unique = true)
     private String numeroPrecinto;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "cm_origen_id", nullable = false)
     private ComisionMedica cmOrigen;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "cm_destino_id", nullable = false)
     private ComisionMedica cmDestino;
+
+    @Transient
     private Remito remito;
-    private List<Remito> remitos;
-    private List<CambioEstadoBolsin> cambiosDeEstado;
+
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
+    @JoinColumn(name = "bolsin_id")
+    @OrderColumn(name = "orden")
+    private List<Remito> remitos = new ArrayList<>();
+
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
+    @JoinColumn(name = "bolsin_id")
+    @OrderColumn(name = "orden")
+    private List<CambioEstadoBolsin> cambiosDeEstado = new ArrayList<>();
+
+    protected Bolsin() {
+    }
 
     public Bolsin(String numeroPrecinto, ComisionMedica cmOrigen, ComisionMedica cmDestino,
                   Remito remito, Estado estadoInicial, LocalDateTime fechaHoraInicio) {
@@ -36,6 +76,10 @@ public class Bolsin implements IAgregado {
         }
         this.cambiosDeEstado = new ArrayList<>();
         this.cambiosDeEstado.add(new CambioEstadoBolsin(estadoInicial, fechaHoraInicio));
+    }
+
+    public Long getId() {
+        return id;
     }
 
     /** DS-CU28 loop sec. 2: Verifica que el estado actual sea ENVIADO. */
@@ -245,6 +289,18 @@ public class Bolsin implements IAgregado {
 
     public List<CambioEstadoBolsin> getCambiosDeEstado() {
         return cambiosDeEstado;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Bolsin that)) return false;
+        return Objects.equals(numeroPrecinto, that.numeroPrecinto);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(numeroPrecinto);
     }
 
     @Override

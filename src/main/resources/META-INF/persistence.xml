@@ -7,7 +7,19 @@
     <persistence-unit name="PPAI-PU" transaction-type="RESOURCE_LOCAL">
         <provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
 
-        <!-- Classes will be auto-discovered by Hibernate -->
+        <class>com.ppai.domain.model.EjemploEntidad</class>
+        <class>com.ppai.domain.model.cu28.ComisionMedica</class>
+        <class>com.ppai.domain.model.cu28.TipoDocumento</class>
+        <class>com.ppai.domain.model.cu28.Estado</class>
+        <class>com.ppai.domain.model.cu28.Empleado</class>
+        <class>com.ppai.domain.model.cu28.Usuario</class>
+        <class>com.ppai.domain.model.cu28.Sesion</class>
+        <class>com.ppai.domain.model.cu28.CambioEstadoDocumentacion</class>
+        <class>com.ppai.domain.model.cu28.Documentacion</class>
+        <class>com.ppai.domain.model.cu28.DetalleRemito</class>
+        <class>com.ppai.domain.model.cu28.Remito</class>
+        <class>com.ppai.domain.model.cu28.CambioEstadoBolsin</class>
+        <class>com.ppai.domain.model.cu28.Bolsin</class>
 
         <properties>
             <!-- Database Connection Settings for H2 (In-Memory or File) -->

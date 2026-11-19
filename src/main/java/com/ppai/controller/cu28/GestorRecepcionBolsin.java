@@ -6,7 +6,8 @@ import com.ppai.domain.model.cu28.*;
 import com.ppai.iterator.IAgregado;
 import com.ppai.iterator.IIterador;
 import com.ppai.iterator.IteradorBolsin;
-import com.ppai.repository.cu28.RepositorioMockBolsines;
+import com.ppai.repository.cu28.IRepositorioCU28;
+import com.ppai.repository.cu28.RepositorioJpaCU28;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -26,7 +27,7 @@ public class GestorRecepcionBolsin implements IAgregado {
 
     private PantallaRecepcionBolsin pantalla;
     private final InterfazServidorCorreo servidorCorreo;
-    private final RepositorioMockBolsines repositorioMockBolsines;
+    private final IRepositorioCU28 repositorio;
 
     private Sesion sesionActual;
     private ComisionMedica comisionMedicaEmpleado;
@@ -52,16 +53,20 @@ public class GestorRecepcionBolsin implements IAgregado {
     private NotificacionRecepcionBolsin ultimaNotificacionEnviada;
 
     public GestorRecepcionBolsin(Sesion sesionActual) {
+        this(sesionActual, new RepositorioJpaCU28());
+    }
+
+    public GestorRecepcionBolsin(Sesion sesionActual, IRepositorioCU28 repositorio) {
         this.sesionActual = sesionActual;
         this.servidorCorreo = new InterfazServidorCorreo();
-        this.repositorioMockBolsines = new RepositorioMockBolsines();
+        this.repositorio = repositorio;
         this.bolsinesEnviados = new ArrayList<>();
         this.estadosDisponibles = new ArrayList<>();
         this.todosBolsines = new ArrayList<>();
         this.documentacionesNoConformes = new ArrayList<>();
 
-        inicializarEstadosDelSistema();
         inicializarBolsinesDeEjemplo(1); // Por defecto: Escenario 1 (CMC)
+        inicializarEstadosDelSistema();
     }
 
     public void setPantalla(PantallaRecepcionBolsin pantalla) {
@@ -143,6 +148,7 @@ public class GestorRecepcionBolsin implements IAgregado {
      */
     public void buscarBolsinEstadoEnviado() {
         this.bolsinesEnviados.clear();
+        this.todosBolsines = new ArrayList<>(repositorio.obtenerTodosBolsines());
         Bolsin[] elementos = todosBolsines.toArray(new Bolsin[0]);
         IIterador itBol = crearIterador(elementos);
         itBol.primero();
@@ -363,7 +369,10 @@ public class GestorRecepcionBolsin implements IAgregado {
         // DS-CU28 pasos 39-40: Actualizar estados de Remitos y Documentaciones
         actualizarRemitoYDocumentacion();
 
-        // DS-CU28 pasos 31-32: Notificar recepción (CU 29)
+        // Persistencia transaccional ACID en BD H2 vía JPA/Hibernate
+        persistirRecepcion();
+
+        // DS-CU28 pasos 31-32: Notificar recepción (CU 29 post-commit)
         notificarRecepcion();
 
         // DS-CU28 paso 33: Informar en pantalla resultado y notificación
@@ -387,6 +396,7 @@ public class GestorRecepcionBolsin implements IAgregado {
      * DS-CU28 paso 23 y loops sec. 6: Recupera los objetos Estado desde el repositorio en memoria.
      */
     public void obtenerEstado() {
+        this.estadosDisponibles = new ArrayList<>(repositorio.obtenerEstados());
         for (Estado estado : estadosDisponibles) {
             if (estado.esAmbitoBolsin() && estado.esEstadoRecibidoEnCMDestino()) {
                 this.estadoRecibidoCMDestino = estado;
@@ -430,6 +440,20 @@ public class GestorRecepcionBolsin implements IAgregado {
 
         // 1. Actualizar Bolsín -> Siempre "Recibido en CM destino" (+ fecha/hora + empleado)
         bolsinSeleccionado.marcarRecibido(estadoRecibidoCMDestino, fechaHoraActual, empleadoActual);
+    }
+
+    /**
+     * Persiste de forma transaccional en BD (JPA/Hibernate) los cambios del bolsín,
+     * su remito, las documentaciones y los historiales de estado.
+     */
+    public void persistirRecepcion() {
+        if (bolsinSeleccionado == null) {
+            return;
+        }
+        this.bolsinSeleccionado = repositorio.actualizarBolsin(this.bolsinSeleccionado, this.empleadoActual);
+        if (this.bolsinSeleccionado != null) {
+            this.remitoSeleccionado = this.bolsinSeleccionado.getRemito();
+        }
     }
 
     /**
@@ -573,28 +597,13 @@ public class GestorRecepcionBolsin implements IAgregado {
     }
 
     private void inicializarEstadosDelSistema() {
-        estadosDisponibles.clear();
-        // Ámbito Bolsín
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_ENVIADO, Estado.AMBITO_BOLSIN));
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_RECIBIDO_CM_DESTINO, Estado.AMBITO_BOLSIN));
-
-        // Ámbito Remito
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, Estado.AMBITO_REMITO));
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, Estado.AMBITO_REMITO));
-
-        // Ámbito Documentación
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_EN_BOLSIN_ENVIADO, Estado.AMBITO_DOCUMENTACION));
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, Estado.AMBITO_DOCUMENTACION));
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_NO_RECIBIDA, Estado.AMBITO_DOCUMENTACION));
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_RECIBIDA_Y_RECHAZADA, Estado.AMBITO_DOCUMENTACION));
-        estadosDisponibles.add(new Estado(Estado.NOMBRE_PARA_REDIRIGIR, Estado.AMBITO_DOCUMENTACION));
+        this.estadosDisponibles = new ArrayList<>(repositorio.obtenerEstados());
     }
 
     public void inicializarBolsinesDeEjemplo(int escenario) {
-        this.todosBolsines.clear();
-        this.todosBolsines.addAll(
-                repositorioMockBolsines.crearBolsinesParaEscenario(sesionActual, estadosDisponibles, escenario)
-        );
+        repositorio.inicializarDatosEscenario(sesionActual, escenario);
+        this.estadosDisponibles = new ArrayList<>(repositorio.obtenerEstados());
+        this.todosBolsines = new ArrayList<>(repositorio.obtenerTodosBolsines());
     }
 
     // Getters auxiliares para la interfaz
@@ -619,7 +628,7 @@ public class GestorRecepcionBolsin implements IAgregado {
     }
 
     public List<ComisionMedica> getComisionesMedicasFiltro() {
-        return repositorioMockBolsines.obtenerComisionesMedicasOrigenCatalogo();
+        return repositorio.obtenerComisionesMedicas();
     }
 
     public Bolsin getBolsinSeleccionado() {

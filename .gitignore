@@ -37,3 +37,6 @@ target/
 # AI Agent folders
 .agent/
 .agents/
+
+# Guías de estudio personales
+GUIA_ESTUDIO_DEFENSA_CU28.md

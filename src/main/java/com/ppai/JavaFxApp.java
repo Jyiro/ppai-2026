@@ -6,6 +6,7 @@ import com.ppai.domain.model.cu28.ComisionMedica;
 import com.ppai.domain.model.cu28.Empleado;
 import com.ppai.domain.model.cu28.Sesion;
 import com.ppai.domain.model.cu28.Usuario;
+import com.ppai.repository.JpaUtil;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
@@ -47,6 +48,11 @@ public class JavaFxApp extends Application {
 
         // 4. DS-CU28 paso 1: Inicio formal del caso de uso
         pantalla.tomarOpcionRegistrarRecepcionBolsin();
+    }
+
+    @Override
+    public void stop() {
+        JpaUtil.shutdown();
     }
 
     public static void main(String[] args) {

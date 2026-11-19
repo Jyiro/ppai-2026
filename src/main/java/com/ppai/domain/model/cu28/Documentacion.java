@@ -1,20 +1,47 @@
 package com.ppai.domain.model.cu28;
 
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderColumn;
+import jakarta.persistence.Table;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Entidad Documentacion — CU 28: Registrar Recepción de Bolsín.
  * Representa un documento adjunto en un DetalleRemito.
  * (Punto de extensión: Patrón State en domain/state/cu28/)
  */
+@Entity
+@Table(name = "documentacion")
 public class Documentacion {
 
+    @Id
     private Long id;
+
+    @Column(name = "asunto", nullable = false)
     private String asunto;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "tipo_documento_id", nullable = false)
     private TipoDocumento tipoDocumento;
-    private List<CambioEstadoDocumentacion> cambiosDeEstado;
+
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
+    @JoinColumn(name = "documentacion_id")
+    @OrderColumn(name = "orden")
+    private List<CambioEstadoDocumentacion> cambiosDeEstado = new ArrayList<>();
+
+    protected Documentacion() {
+    }
 
     public Documentacion(Long id, String asunto, TipoDocumento tipoDocumento,
                          Estado estadoInicial, LocalDateTime fechaHoraInicio) {
@@ -105,6 +132,18 @@ public class Documentacion {
 
     public List<CambioEstadoDocumentacion> getCambiosDeEstado() {
         return cambiosDeEstado;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Documentacion that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 
     @Override

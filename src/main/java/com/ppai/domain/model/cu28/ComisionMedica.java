@@ -1,13 +1,28 @@
 package com.ppai.domain.model.cu28;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+import java.util.Objects;
+
 /**
  * Entidad ComisionMedica — CU 28: Registrar Recepción de Bolsín.
  * Representa una Comisión Médica (CM) del sistema.
  */
+@Entity
+@Table(name = "comision_medica")
 public class ComisionMedica {
 
+    @Id
     private Long id;
+
+    @Column(name = "nombre", nullable = false)
     private String nombre;
+
+    protected ComisionMedica() {
+    }
 
     public ComisionMedica(Long id, String nombre) {
         this.id = id;
@@ -41,6 +56,18 @@ public class ComisionMedica {
 
     public String getNombre() {
         return nombre;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ComisionMedica that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 
     @Override
