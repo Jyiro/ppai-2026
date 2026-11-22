@@ -14,35 +14,35 @@
 /* ── Encabezado Principal ───────────────────────────────────────────────── */
 .header-bar {
     -fx-background-color: linear-gradient(to right, #0f172a, #1e293b);
-    -fx-padding: 16px 24px;
+    -fx-padding: 10px 18px;
     -fx-border-color: #334155;
     -fx-border-width: 0 0 1px 0;
 }
 
 .header-title {
-    -fx-font-size: 20px;
+    -fx-font-size: 18px;
     -fx-font-weight: bold;
     -fx-text-fill: #ffffff;
 }
 
 .header-subtitle {
-    -fx-font-size: 12px;
+    -fx-font-size: 11.5px;
     -fx-text-fill: #94a3b8;
 }
 
 .session-chip {
     -fx-background-color: rgba(255, 255, 255, 0.12);
     -fx-background-radius: 20px;
-    -fx-padding: 6px 14px;
+    -fx-padding: 5px 12px;
     -fx-text-fill: #f1f5f9;
-    -fx-font-size: 12px;
+    -fx-font-size: 11.5px;
     -fx-font-weight: 600;
 }
 
 /* ── Stepper de Proceso ──────────────────────────────────────────────────── */
 .stepper-container {
     -fx-background-color: #ffffff;
-    -fx-padding: 14px 24px;
+    -fx-padding: 8px 18px;
     -fx-border-color: #e2e8f0;
     -fx-border-width: 0 0 1px 0;
     -fx-alignment: center;
@@ -50,21 +50,21 @@
 
 .step-item {
     -fx-alignment: center-left;
-    -fx-spacing: 10px;
-    -fx-padding: 4px 12px;
+    -fx-spacing: 8px;
+    -fx-padding: 2px 10px;
 }
 
 .step-circle {
-    -fx-min-width: 28px;
-    -fx-min-height: 28px;
-    -fx-max-width: 28px;
-    -fx-max-height: 28px;
-    -fx-background-radius: 14px;
+    -fx-min-width: 24px;
+    -fx-min-height: 24px;
+    -fx-max-width: 24px;
+    -fx-max-height: 24px;
+    -fx-background-radius: 12px;
     -fx-background-color: #e2e8f0;
     -fx-alignment: center;
     -fx-text-fill: #64748b;
     -fx-font-weight: bold;
-    -fx-font-size: 12px;
+    -fx-font-size: 11.5px;
 }
 
 .step-circle-active {
@@ -97,6 +97,18 @@
     -fx-background-color: #cbd5e1;
 }
 
+/* ── Contenedor Scroll Principal ────────────────────────────────────────── */
+.main-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background: #f8fafc;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.main-scroll-pane > .viewport {
+    -fx-background-color: #f8fafc;
+}
+
 /* ── Tarjetas y Paneles Contenedores ────────────────────────────────────── */
 .card-panel {
     -fx-background-color: #ffffff;
@@ -104,7 +116,7 @@
     -fx-border-color: #e2e8f0;
     -fx-border-radius: 10px;
     -fx-border-width: 1px;
-    -fx-padding: 20px;
+    -fx-padding: 14px 18px;
     -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.04), 12, 0, 0, 3);
 }
 
@@ -137,16 +149,16 @@
 .table-view .column-header {
     -fx-background-color: transparent;
     -fx-font-weight: bold;
-    -fx-font-size: 12px;
+    -fx-font-size: 11.5px;
     -fx-text-fill: #475569;
-    -fx-padding: 10px 8px;
+    -fx-padding: 7px 8px;
 }
 
 .table-view .table-row-cell {
     -fx-background-color: #ffffff;
     -fx-border-color: #f1f5f9;
     -fx-border-width: 0 0 1px 0;
-    -fx-cell-size: 42px;
+    -fx-cell-size: 32px;
 }
 
 .table-view .table-row-cell:odd {
@@ -314,7 +326,7 @@
     -fx-border-color: #e2e8f0;
     -fx-border-radius: 8px;
     -fx-border-width: 1.5px;
-    -fx-padding: 14px 18px;
+    -fx-padding: 8px 14px;
     -fx-cursor: hand;
 }
 

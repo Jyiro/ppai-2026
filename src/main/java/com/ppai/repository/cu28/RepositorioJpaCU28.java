@@ -18,8 +18,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Implementación JPA / Hibernate 6 + H2 en memoria para la persistencia del CU 28.
- * Gestiona el esquema relacional, datos maestros/iniciales y actualizaciones transaccionales.
+ * Implementación JPA / Hibernate 6 + H2 en memoria para la persistencia del CU
+ * 28.
+ * Gestiona el esquema relacional, datos maestros/iniciales y actualizaciones
+ * transaccionales.
  */
 public class RepositorioJpaCU28 implements IRepositorioCU28 {
 
@@ -50,7 +52,8 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
             asegurarEstado(em, Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, Estado.AMBITO_REMITO);
             asegurarEstado(em, Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, Estado.AMBITO_REMITO);
 
-            Estado estDocEnBolsinEnviado = asegurarEstado(em, Estado.NOMBRE_EN_BOLSIN_ENVIADO, Estado.AMBITO_DOCUMENTACION);
+            Estado estDocEnBolsinEnviado = asegurarEstado(em, Estado.NOMBRE_EN_BOLSIN_ENVIADO,
+                    Estado.AMBITO_DOCUMENTACION);
             asegurarEstado(em, Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, Estado.AMBITO_DOCUMENTACION);
             asegurarEstado(em, Estado.NOMBRE_NO_RECIBIDA, Estado.AMBITO_DOCUMENTACION);
             asegurarEstado(em, Estado.NOMBRE_RECIBIDA_Y_RECHAZADA, Estado.AMBITO_DOCUMENTACION);
@@ -100,12 +103,14 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
                 em.persist(new Sesion(usrManaged));
             }
 
-            // 6. Poblar los 7 bolsines del escenario en BD (mismos datos de RepositorioMockBolsines)
+            // 6. Poblar los 7 bolsines del escenario en BD (mismos datos de
+            // RepositorioMockBolsines)
             ComisionMedica cmUsuarioOriginal = (sesionActual != null && sesionActual.getUsuario() != null)
-                    ? sesionActual.getUsuario().getCMEmpleado() : null;
+                    ? sesionActual.getUsuario().getCMEmpleado()
+                    : null;
             boolean esCMPredefinida = cmUsuarioOriginal != null
                     && (Long.valueOf(1L).equals(cmUsuarioOriginal.getId())
-                    || Long.valueOf(2L).equals(cmUsuarioOriginal.getId()));
+                            || Long.valueOf(2L).equals(cmUsuarioOriginal.getId()));
             ComisionMedica cmDestinoGrupo1 = esCMPredefinida ? cmCentral : cmUsuarioManaged;
 
             em.persist(crearBolsinFlujoBasico(cmDestinoGrupo1, cmOrigenCordoba, estBolsinEnviado,
@@ -202,8 +207,8 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
 
     private Estado asegurarEstado(EntityManager em, String nombre, String ambito) {
         List<Estado> encontrados = em.createQuery(
-                        "SELECT e FROM Estado e WHERE e.nombre = :nombre AND e.ambito = :ambito",
-                        Estado.class)
+                "SELECT e FROM Estado e WHERE e.nombre = :nombre AND e.ambito = :ambito",
+                Estado.class)
                 .setParameter("nombre", nombre)
                 .setParameter("ambito", ambito)
                 .getResultList();
@@ -236,11 +241,11 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
     }
 
     private Bolsin crearBolsinFlujoBasico(ComisionMedica cmDestinoActual,
-                                          ComisionMedica cmOrigen,
-                                          Estado estadoEnviado,
-                                          Estado estadoDocEnviado,
-                                          TipoDocumento tipoExpediente,
-                                          TipoDocumento tipoDictamen) {
+            ComisionMedica cmOrigen,
+            Estado estadoEnviado,
+            Estado estadoDocEnviado,
+            TipoDocumento tipoExpediente,
+            TipoDocumento tipoDictamen) {
         Documentacion d1 = new Documentacion(101L, "EXP-2026-904: Trámite incapacidad laboral Gómez",
                 tipoExpediente, estadoDocEnviado, LocalDateTime.now().minusDays(3));
         Documentacion d2 = new Documentacion(102L, "DIC-2026-312: Dictamen traumatológico pericial",
@@ -250,17 +255,18 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
         remito.agregarDetalle(new DetalleRemito(d1));
         remito.agregarDetalle(new DetalleRemito(d2));
 
-        return new Bolsin("PREC-7041", cmOrigen, cmDestinoActual, remito, estadoEnviado, LocalDateTime.now().minusDays(3));
+        return new Bolsin("PREC-7041", cmOrigen, cmDestinoActual, remito, estadoEnviado,
+                LocalDateTime.now().minusDays(3));
     }
 
     private Bolsin crearBolsinAlternativosA3A4(ComisionMedica cmDestinoActual,
-                                               ComisionMedica cmOrigen,
-                                               Estado estadoEnviado,
-                                               Estado estadoDocEnviado,
-                                               TipoDocumento tipoExpediente,
-                                               TipoDocumento tipoEstudio,
-                                               TipoDocumento tipoCartaDoc,
-                                               TipoDocumento tipoDictamen) {
+            ComisionMedica cmOrigen,
+            Estado estadoEnviado,
+            Estado estadoDocEnviado,
+            TipoDocumento tipoExpediente,
+            TipoDocumento tipoEstudio,
+            TipoDocumento tipoCartaDoc,
+            TipoDocumento tipoDictamen) {
         Documentacion d1 = new Documentacion(201L, "EXP-2026-1188: Evaluación secuelas respiratorias",
                 tipoExpediente, estadoDocEnviado, LocalDateTime.now().minusDays(2));
         Documentacion d2 = new Documentacion(202L, "EST-2026-049: Tomografía computada de tórax",
@@ -276,29 +282,31 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
         remito.agregarDetalle(new DetalleRemito(d3));
         remito.agregarDetalle(new DetalleRemito(d4));
 
-        return new Bolsin("PREC-8820", cmOrigen, cmDestinoActual, remito, estadoEnviado, LocalDateTime.now().minusDays(2));
+        return new Bolsin("PREC-8820", cmOrigen, cmDestinoActual, remito, estadoEnviado,
+                LocalDateTime.now().minusDays(2));
     }
 
     private Bolsin crearBolsinRedireccionCMC(ComisionMedica cmDestinoActual,
-                                             ComisionMedica cmOrigen,
-                                             Estado estadoEnviado,
-                                             Estado estadoDocEnviado,
-                                             TipoDocumento tipoExpediente) {
+            ComisionMedica cmOrigen,
+            Estado estadoEnviado,
+            Estado estadoDocEnviado,
+            TipoDocumento tipoExpediente) {
         Documentacion documentacion = new Documentacion(301L, "EXP-2026-3401: Apelación Dictamen CMC Sala B",
                 tipoExpediente, estadoDocEnviado, LocalDateTime.now().minusHours(18));
 
         Remito remito = new Remito("REM-2026-01204");
         remito.agregarDetalle(new DetalleRemito(documentacion));
 
-        return new Bolsin("PREC-9150", cmOrigen, cmDestinoActual, remito, estadoEnviado, LocalDateTime.now().minusHours(18));
+        return new Bolsin("PREC-9150", cmOrigen, cmDestinoActual, remito, estadoEnviado,
+                LocalDateTime.now().minusHours(18));
     }
 
     private Bolsin crearBolsinRosario1(ComisionMedica cmDestinoRosario,
-                                       ComisionMedica cmOrigen,
-                                       Estado estadoEnviado,
-                                       Estado estadoDocEnviado,
-                                       TipoDocumento tipoExpediente,
-                                       TipoDocumento tipoEstudio) {
+            ComisionMedica cmOrigen,
+            Estado estadoEnviado,
+            Estado estadoDocEnviado,
+            TipoDocumento tipoExpediente,
+            TipoDocumento tipoEstudio) {
         Documentacion d1 = new Documentacion(401L, "EXP-2026-4102: Derivación interjurisdiccional Santa Fe",
                 tipoExpediente, estadoDocEnviado, LocalDateTime.now().minusDays(2));
         Documentacion d2 = new Documentacion(402L, "EST-2026-198: Electromiograma miembro superior",
@@ -308,16 +316,17 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
         remito.agregarDetalle(new DetalleRemito(d1));
         remito.agregarDetalle(new DetalleRemito(d2));
 
-        return new Bolsin("PREC-6015", cmOrigen, cmDestinoRosario, remito, estadoEnviado, LocalDateTime.now().minusDays(2));
+        return new Bolsin("PREC-6015", cmOrigen, cmDestinoRosario, remito, estadoEnviado,
+                LocalDateTime.now().minusDays(2));
     }
 
     private Bolsin crearBolsinRosario2(ComisionMedica cmDestinoRosario,
-                                       ComisionMedica cmOrigen,
-                                       Estado estadoEnviado,
-                                       Estado estadoDocEnviado,
-                                       TipoDocumento tipoDictamen,
-                                       TipoDocumento tipoExpediente,
-                                       TipoDocumento tipoCartaDoc) {
+            ComisionMedica cmOrigen,
+            Estado estadoEnviado,
+            Estado estadoDocEnviado,
+            TipoDocumento tipoDictamen,
+            TipoDocumento tipoExpediente,
+            TipoDocumento tipoCartaDoc) {
         Documentacion d1 = new Documentacion(501L, "DIC-2026-710: Devolución expediente apelado CMC",
                 tipoDictamen, estadoDocEnviado, LocalDateTime.now().minusDays(1));
         Documentacion d2 = new Documentacion(502L, "EXP-2026-2905: Reapertura trámite incapacidad",
@@ -330,14 +339,15 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
         remito.agregarDetalle(new DetalleRemito(d2));
         remito.agregarDetalle(new DetalleRemito(d3));
 
-        return new Bolsin("PREC-6088", cmOrigen, cmDestinoRosario, remito, estadoEnviado, LocalDateTime.now().minusDays(1));
+        return new Bolsin("PREC-6088", cmOrigen, cmDestinoRosario, remito, estadoEnviado,
+                LocalDateTime.now().minusDays(1));
     }
 
     private Bolsin crearBolsinOtroDestino(ComisionMedica cmOrigen,
-                                          ComisionMedica cmOtra,
-                                          Estado estadoEnviado,
-                                          Estado estadoDocEnviado,
-                                          TipoDocumento tipoExpediente) {
+            ComisionMedica cmOtra,
+            Estado estadoEnviado,
+            Estado estadoDocEnviado,
+            TipoDocumento tipoExpediente) {
         Documentacion documentacion = new Documentacion(900L, "Trámite de otra provincia",
                 tipoExpediente, estadoDocEnviado, LocalDateTime.now());
 
@@ -348,10 +358,10 @@ public class RepositorioJpaCU28 implements IRepositorioCU28 {
     }
 
     private Bolsin crearBolsinYaRecibido(ComisionMedica cmDestino,
-                                         ComisionMedica cmOrigen,
-                                         Estado estadoRecibido,
-                                         Estado estadoDocEnviado,
-                                         TipoDocumento tipoDictamen) {
+            ComisionMedica cmOrigen,
+            Estado estadoRecibido,
+            Estado estadoDocEnviado,
+            TipoDocumento tipoDictamen) {
         Documentacion documentacion = new Documentacion(950L, "DIC-2026-099: Bolsín ya recepcionado anteriormente",
                 tipoDictamen, estadoDocEnviado, LocalDateTime.now().minusDays(5));
 

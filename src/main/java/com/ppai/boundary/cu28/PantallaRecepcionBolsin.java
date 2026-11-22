@@ -41,6 +41,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
     private Label[] stepLabels;
 
     // ── Contenedor Central Dinámico ──
+    private ScrollPane mainScrollPane;
     private StackPane contentArea;
 
     // ── Paso 1: Bolsines por Recibir ──
@@ -150,10 +151,13 @@ public class PantallaRecepcionBolsin extends BorderPane {
                     + (nombreEmpleado != null && !nombreEmpleado.isEmpty() ? " (" + nombreEmpleado + ")" : "");
             if (lblUsuarioActivo != null) {
                 lblUsuarioActivo.setText(textoUsuario);
+                lblUsuarioActivo.setTooltip(new Tooltip(textoUsuario));
             }
         }
         if (cm != null) {
-            lblCmActiva.setText("CM Destino: " + cm.getNombre());
+            String textoCm = "CM Destino: " + cm.getNombre();
+            lblCmActiva.setText(textoCm);
+            lblCmActiva.setTooltip(new Tooltip(textoCm));
             actualizarStatus("Comisión Médica activa: " + cm.getNombre());
         }
     }
@@ -540,7 +544,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
         this.setTop(crearTopContainer());
 
         this.contentArea = new StackPane();
-        this.contentArea.setPadding(new Insets(20, 24, 20, 24));
+        this.contentArea.setPadding(new Insets(12, 18, 14, 18));
 
         this.viewPaso1 = crearVistaPaso1();
         this.viewPaso2 = crearVistaPaso2();
@@ -548,7 +552,15 @@ public class PantallaRecepcionBolsin extends BorderPane {
         this.viewPaso4 = crearVistaPaso4();
 
         this.contentArea.getChildren().addAll(viewPaso1, viewPaso2, viewPaso3, viewPaso4);
-        this.setCenter(this.contentArea);
+
+        this.mainScrollPane = new ScrollPane(this.contentArea);
+        this.mainScrollPane.setFitToWidth(true);
+        this.mainScrollPane.setFitToHeight(false);
+        this.mainScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        this.mainScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        this.mainScrollPane.getStyleClass().add("main-scroll-pane");
+
+        this.setCenter(this.mainScrollPane);
 
         this.setBottom(crearFooterBar());
 
@@ -560,11 +572,12 @@ public class PantallaRecepcionBolsin extends BorderPane {
         VBox topBox = new VBox();
 
         // 1. Header Bar
-        HBox headerBar = new HBox(16);
+        HBox headerBar = new HBox(10);
         headerBar.getStyleClass().add("header-bar");
         headerBar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleBox = new VBox(2);
+        VBox titleBox = new VBox(1);
+        titleBox.setMinWidth(210);
         this.lblTitulo = new Label("Recepción de Bolsines — CU 28");
         this.lblTitulo.getStyleClass().add("header-title");
 
@@ -578,19 +591,26 @@ public class PantallaRecepcionBolsin extends BorderPane {
         String nombreEmpInicial = usrInicial.getEmpleado() != null ? " (" + usrInicial.getEmpleado().getNombre() + ")" : "";
         this.lblUsuarioActivo = new Label("Usuario: " + usrInicial.getUsername() + nombreEmpInicial);
         this.lblUsuarioActivo.getStyleClass().add("session-chip");
+        this.lblUsuarioActivo.setMaxWidth(240);
+        this.lblUsuarioActivo.setTooltip(new Tooltip(this.lblUsuarioActivo.getText()));
 
         this.lblCmActiva = new Label("CM Destino: " + gestor.getSesionActual().getUsuario().getCMEmpleado().getNombre());
         this.lblCmActiva.getStyleClass().add("session-chip");
+        this.lblCmActiva.setMaxWidth(240);
+        this.lblCmActiva.setTooltip(new Tooltip(this.lblCmActiva.getText()));
 
         // Selector de Mock / Escenario para evaluación docente
-        HBox mockControlBox = new HBox(8);
+        HBox mockControlBox = new HBox(6);
         mockControlBox.setAlignment(Pos.CENTER);
+        mockControlBox.setMinWidth(Region.USE_PREF_SIZE);
         Label lblMockTag = new Label("Mock:");
-        lblMockTag.setStyle("-fx-text-fill: #94a3b8; -fx-font-weight: bold;");
+        lblMockTag.setStyle("-fx-text-fill: #94a3b8; -fx-font-weight: bold; -fx-font-size: 12px;");
+        lblMockTag.setMinWidth(Region.USE_PREF_SIZE);
 
         this.cmbEscenarioMock = new ComboBox<>();
         this.cmbEscenarioMock.getItems().addAll("Escenario 1: Comisión Médica Central (CMC)", "Escenario 2: CMJ Regional (Rosario)");
         this.cmbEscenarioMock.setValue("Escenario 1: Comisión Médica Central (CMC)");
+        this.cmbEscenarioMock.setPrefWidth(215);
         this.cmbEscenarioMock.setOnAction(e -> {
             int esc = cmbEscenarioMock.getSelectionModel().getSelectedIndex() + 1;
             actualizandoFiltros = true;
@@ -612,6 +632,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
 
         this.btnCancelarGlobal = new Button("✕ Cancelar (Obs. 1)");
         this.btnCancelarGlobal.getStyleClass().addAll("btn-danger");
+        this.btnCancelarGlobal.setMinWidth(Region.USE_PREF_SIZE);
         this.btnCancelarGlobal.setOnAction(e -> cancelar());
 
         headerBar.getChildren().addAll(titleBox, lblUsuarioActivo, lblCmActiva, mockControlBox, btnCancelarGlobal);
@@ -672,6 +693,10 @@ public class PantallaRecepcionBolsin extends BorderPane {
 
         viewPaso4.setVisible(paso == 4);
         viewPaso4.setManaged(paso == 4);
+
+        if (mainScrollPane != null) {
+            mainScrollPane.setVvalue(0.0);
+        }
 
         // Actualizar Stepper visual
         for (int i = 0; i < 4; i++) {
@@ -760,6 +785,9 @@ public class PantallaRecepcionBolsin extends BorderPane {
         this.listaBolsinesData = FXCollections.observableArrayList();
         this.tblBolsines = new TableView<>(listaBolsinesData);
         this.tblBolsines.setPlaceholder(new Label("No se encontraron bolsines enviados para esta Comisión Médica."));
+        this.tblBolsines.setMinHeight(240);
+        this.tblBolsines.setPrefHeight(340);
+        this.tblBolsines.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(tblBolsines, Priority.ALWAYS);
 
         TableColumn<Bolsin, String> colPrecinto = new TableColumn<>("Nº de Precinto");
@@ -852,53 +880,53 @@ public class PantallaRecepcionBolsin extends BorderPane {
     // ─────────────────────────────────────────────────────────────────────────
 
     private VBox crearVistaPaso2() {
-        VBox root = new VBox(16);
+        VBox root = new VBox(10);
         root.setAlignment(Pos.TOP_CENTER);
 
-        VBox card = new VBox(16);
+        VBox card = new VBox(10);
         card.getStyleClass().add("card-panel");
         VBox.setVgrow(card, Priority.ALWAYS);
 
         // 1. Resumen de Cabecera (Bolsín y Remito)
-        HBox summaryBox = new HBox(20);
+        HBox summaryBox = new HBox(16);
         summaryBox.setAlignment(Pos.CENTER_LEFT);
-        summaryBox.setPadding(new Insets(12, 16, 12, 16));
+        summaryBox.setPadding(new Insets(8, 14, 8, 14));
         summaryBox.setStyle("-fx-background-color: #f1f5f9; -fx-background-radius: 8px; -fx-border-color: #cbd5e1; -fx-border-radius: 8px;");
 
-        VBox colBolsin = new VBox(4);
+        VBox colBolsin = new VBox(2);
         Label lblT1 = new Label("BOLSÍN SELECCIONADO");
-        lblT1.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+        lblT1.setStyle("-fx-font-size: 9.5px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
         this.lblDetallePrecinto = new Label("PREC-XXXX");
-        this.lblDetallePrecinto.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        this.lblDetallePrecinto.setStyle("-fx-font-size: 13.5px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
         this.lblDetalleCMOrigen = new Label("Origen: -");
-        this.lblDetalleCMOrigen.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569;");
+        this.lblDetalleCMOrigen.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
         colBolsin.getChildren().addAll(lblT1, lblDetallePrecinto, lblDetalleCMOrigen);
 
-        VBox colRemito = new VBox(4);
+        VBox colRemito = new VBox(2);
         Label lblT2 = new Label("REMITO ADJUNTO");
-        lblT2.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+        lblT2.setStyle("-fx-font-size: 9.5px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
         this.lblDetalleNumeroRemito = new Label("REM-XXXX");
-        this.lblDetalleNumeroRemito.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        this.lblDetalleNumeroRemito.setStyle("-fx-font-size: 13.5px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
         this.lblDetalleFechaEnvio = new Label("Enviado: -");
-        this.lblDetalleFechaEnvio.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569;");
+        this.lblDetalleFechaEnvio.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
         colRemito.getChildren().addAll(lblT2, lblDetalleNumeroRemito, lblDetalleFechaEnvio);
 
-        VBox colDocsInfo = new VBox(4);
+        VBox colDocsInfo = new VBox(2);
         Label lblT3 = new Label("CANTIDAD DE DOCUMENTACIONES");
-        lblT3.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+        lblT3.setStyle("-fx-font-size: 9.5px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
         this.lblDetalleCantDocs = new Label("0");
-        this.lblDetalleCantDocs.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #2563eb;");
+        this.lblDetalleCantDocs.setStyle("-fx-font-size: 13.5px; -fx-font-weight: bold; -fx-text-fill: #2563eb;");
         Label lblT3Sub = new Label("Documentos declarados en remito");
-        lblT3Sub.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569;");
+        lblT3Sub.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
         colDocsInfo.getChildren().addAll(lblT3, lblDetalleCantDocs, lblT3Sub);
 
-        VBox colIteratorInfo = new VBox(4);
+        VBox colIteratorInfo = new VBox(2);
         Label lblT4 = new Label("RECORRIDO ITERATOR");
-        lblT4.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+        lblT4.setStyle("-fx-font-size: 9.5px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
         Label lblT4Val = new Label("IteradorRemito → IteradorDetalleRemito");
-        lblT4Val.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        lblT4Val.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
         Label lblT4Sub = new Label("Lectura desacoplada (GoF)");
-        lblT4Sub.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569;");
+        lblT4Sub.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
         colIteratorInfo.getChildren().addAll(lblT4, lblT4Val, lblT4Sub);
 
         summaryBox.getChildren().addAll(colBolsin, new Separator(javafx.geometry.Orientation.VERTICAL),
@@ -906,11 +934,12 @@ public class PantallaRecepcionBolsin extends BorderPane {
                 colDocsInfo, new Separator(javafx.geometry.Orientation.VERTICAL), colIteratorInfo);
 
         // 2. Tabla de Documentación con Checkbox reactivo
-        VBox tableDocsSection = new VBox(8);
-        HBox docsHeaderBox = new HBox(12);
+        VBox tableDocsSection = new VBox(6);
+        VBox.setVgrow(tableDocsSection, Priority.ALWAYS);
+        HBox docsHeaderBox = new HBox(10);
         docsHeaderBox.setAlignment(Pos.CENTER_LEFT);
         Label lblDocsTitle = new Label("Documentación Contenida en el Remito:");
-        lblDocsTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #1e293b;");
+        lblDocsTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 12.5px; -fx-text-fill: #1e293b;");
 
         this.lblAvisoDocsNoConformes = new Label("ℹ Marque/desmarque los casilleros para indicar documentos faltantes (A3) o erróneos (A4).");
         this.lblAvisoDocsNoConformes.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b;");
@@ -918,8 +947,11 @@ public class PantallaRecepcionBolsin extends BorderPane {
 
         this.listaDocsData = FXCollections.observableArrayList();
         this.tblDocumentacion = new TableView<>(listaDocsData);
-        this.tblDocumentacion.setPrefHeight(180);
+        this.tblDocumentacion.setMinHeight(145);
+        this.tblDocumentacion.setPrefHeight(175);
+        this.tblDocumentacion.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         this.tblDocumentacion.setEditable(true);
+        VBox.setVgrow(this.tblDocumentacion, Priority.ALWAYS);
 
         TableColumn<DocumentacionRow, Boolean> colCheck = new TableColumn<>("¿Conforme?");
         colCheck.setCellValueFactory(cellData -> cellData.getValue().seleccionadaProperty());
@@ -992,9 +1024,9 @@ public class PantallaRecepcionBolsin extends BorderPane {
 
         // 3. Panel de las 4 Opciones de Recepción
         Label lblOpcionesHeader = new Label("Seleccione la Opción de Recepción correspondiente (CU 28):");
-        lblOpcionesHeader.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #1e293b;");
+        lblOpcionesHeader.setStyle("-fx-font-weight: bold; -fx-font-size: 12.5px; -fx-text-fill: #1e293b;");
 
-        this.boxOpcionesCards = new VBox(10);
+        this.boxOpcionesCards = new VBox(6);
         this.grupoOpciones = new ToggleGroup();
         this.radioOpcionesList = new ArrayList<>();
 
@@ -1037,7 +1069,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
         for (OpcionRecepcion opc : opciones) {
             boolean deshabilitada = opc.isSoloCMC() && !destinoEsCMC;
 
-            HBox card = new HBox(14);
+            HBox card = new HBox(10);
             card.setAlignment(Pos.CENTER_LEFT);
             card.getStyleClass().add("option-card");
 
@@ -1048,31 +1080,31 @@ public class PantallaRecepcionBolsin extends BorderPane {
             radioOpcionesList.add(rb);
 
             Label badgeNum = new Label("Opción " + opc.getNumero());
-            badgeNum.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-text-fill: #2563eb; -fx-background-color: #eff6ff; -fx-padding: 3px 8px; -fx-background-radius: 4px;");
+            badgeNum.setStyle("-fx-font-weight: bold; -fx-font-size: 10.5px; -fx-text-fill: #2563eb; -fx-background-color: #eff6ff; -fx-padding: 2px 7px; -fx-background-radius: 4px;");
 
-            VBox textBox = new VBox(2);
+            VBox textBox = new VBox(1);
             HBox titleRow = new HBox(8);
             titleRow.setAlignment(Pos.CENTER_LEFT);
             Label lblTitulo = new Label(opc.getTitulo());
-            lblTitulo.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: " + (deshabilitada ? "#94a3b8;" : "#0f172a;"));
+            lblTitulo.setStyle("-fx-font-weight: bold; -fx-font-size: 12.5px; -fx-text-fill: " + (deshabilitada ? "#94a3b8;" : "#0f172a;"));
             titleRow.getChildren().addAll(badgeNum, lblTitulo);
 
             if (deshabilitada) {
                 Label badgeSoloCMC = new Label("Solo disponible en Comisión Médica Central (CMC)");
-                badgeSoloCMC.setStyle("-fx-font-size: 10px; -fx-text-fill: #b91c1c; -fx-background-color: #fef2f2; -fx-padding: 2px 6px; -fx-background-radius: 4px;");
+                badgeSoloCMC.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #b91c1c; -fx-background-color: #fef2f2; -fx-padding: 1px 6px; -fx-background-radius: 4px;");
                 titleRow.getChildren().add(badgeSoloCMC);
                 card.getStyleClass().add("option-card-disabled");
             }
 
             Label lblDesc = new Label(opc.getDescripcion());
-            lblDesc.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+            lblDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748b;");
 
             HBox badgesImpacto = new HBox(8);
-            badgesImpacto.setPadding(new Insets(3, 0, 0, 0));
+            badgesImpacto.setPadding(new Insets(1, 0, 0, 0));
             Label tagRemito = new Label("Remito: " + opc.getImpactoRemito());
-            tagRemito.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569; -fx-background-color: #f1f5f9; -fx-padding: 2px 6px; -fx-background-radius: 4px;");
+            tagRemito.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #475569; -fx-background-color: #f1f5f9; -fx-padding: 1px 6px; -fx-background-radius: 4px;");
             Label tagDoc = new Label("Documentación: " + opc.getImpactoDocumentacion());
-            tagDoc.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569; -fx-background-color: #f1f5f9; -fx-padding: 2px 6px; -fx-background-radius: 4px;");
+            tagDoc.setStyle("-fx-font-size: 9.5px; -fx-text-fill: #475569; -fx-background-color: #f1f5f9; -fx-padding: 1px 6px; -fx-background-radius: 4px;");
             badgesImpacto.getChildren().addAll(tagRemito, tagDoc);
 
             textBox.getChildren().addAll(titleRow, lblDesc, badgesImpacto);

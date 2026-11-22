@@ -38,12 +38,16 @@ public class JavaFxApp extends Application {
         PantallaRecepcionBolsin pantalla = new PantallaRecepcionBolsin(gestor);
         gestor.setPantalla(pantalla);
 
-        // 3. Configuración de Escena y Ventana
-        Scene scene = new Scene(pantalla, 1120, 760);
+        // 3. Configuración de Escena y Ventana (Adaptativa a la resolución de pantalla)
+        javafx.geometry.Rectangle2D screenBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+        double initWidth = Math.min(1200, screenBounds.getWidth() * 0.94);
+        double initHeight = Math.min(780, screenBounds.getHeight() * 0.92);
+
+        Scene scene = new Scene(pantalla, initWidth, initHeight);
         primaryStage.setTitle("PPAI 2026 — DSI | CU 28: Registrar Recepción de Bolsín");
         primaryStage.setScene(scene);
-        primaryStage.setMinWidth(980);
-        primaryStage.setMinHeight(680);
+        primaryStage.setMinWidth(820);
+        primaryStage.setMinHeight(560);
         primaryStage.show();
 
         // 4. DS-CU28 paso 1: Inicio formal del caso de uso
