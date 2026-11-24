@@ -56,13 +56,14 @@
 
 **loop de bolsines** `[Mientras haFinalizado() == false]`
 - `GestorRecepcionBolsin → IteradorBolsin`: `haFinalizado(): boolean`
-- `GestorRecepcionBolsin → IteradorBolsin`: `actual(): Object`
+- `GestorRecepcionBolsin → IteradorBolsin`: `elementoActual(): Object`
   - `IteradorBolsin → IteradorBolsin`: `comprobarFiltro(filtro: Object[]): boolean`
-  - `IteradorBolsin → Bolsin`: `sosEnviado(): boolean`
-    - `Bolsin → ComisionMedica`: `esTuCMDestino(cmUsuario: String): boolean`
-    - `Bolsin → CambioEstadoBolsin`: `*sosActual(): boolean`
-    - `Bolsin → actual : CambioEstadoBolsin`: `sosEnviado(): boolean`
-    - `actual : CambioEstadoBolsin → Estado`: `esEnviado(): boolean`
+    - `IteradorBolsin → Bolsin`: `sosEnviado(): boolean`
+      - `Bolsin → CambioEstadoBolsin`: `*sosActual(): boolean`
+      - `Bolsin → actual : CambioEstadoBolsin`: `sosEnviado(): boolean`
+      - `actual : CambioEstadoBolsin → Estado`: `esEnviado(): boolean`
+    - `IteradorBolsin → Bolsin`: `esTuCMDestino(cmUsuario: String): boolean`
+      - `Bolsin → ComisionMedica`: `esTuCMDestino(cmUsuario: String): boolean`
 - `GestorRecepcionBolsin → Bolsin`: `getNombreCMOrigen(): String` *(método nuevo de diseño)*
   - `Bolsin → ComisionMedica`: `getNombre(): String` *(método nuevo de diseño)*
 - `GestorRecepcionBolsin → Bolsin`: `getNroPrecinto(): int`
@@ -88,7 +89,7 @@
 
 **loop de remitos** `[Mientras haFinalizado() == false]`
 - `Seleccionado : Bolsin → IteradorRemito`: `haFinalizado(): boolean`
-- `Seleccionado : Bolsin → IteradorRemito`: `actual(): Object`
+- `Seleccionado : Bolsin → IteradorRemito`: `elementoActual(): Object`
 - `Seleccionado : Bolsin → Remito`: `getNumero(): int`
 - `Seleccionado : Bolsin → Remito`: `buscarDocumentacion(): String[][]`
   - `Remito → Remito`: `crearIterador(elementos: DetalleRemito[]): IIterador`
@@ -97,7 +98,7 @@
 
   **loop de detalle remitos** `[Mientras haFinalizado() == false]`
   - `Remito → IteradorDetalleRemito`: `haFinalizado(): boolean`
-  - `Remito → IteradorDetalleRemito`: `actual(): Object`
+  - `Remito → IteradorDetalleRemito`: `elementoActual(): Object`
   - `Remito → DetalleRemito`: `obtenerAsuntoYTipoDoc(): String[]` *(método nuevo de diseño)*
     - `DetalleRemito → Documentacion`: `getAsunto(): String`
     - `DetalleRemito → Documentacion`: `mostrarTipoDocumentacion(): String`
@@ -217,13 +218,14 @@ sequenceDiagram
 
     loop loop de bolsines [Mientras haFinalizado() == false]
         Gest->>ItBol: haFinalizado(): boolean
-        Gest->>ItBol: actual(): Object
+        Gest->>ItBol: elementoActual(): Object
         ItBol->>ItBol: comprobarFiltro(filtro: Object[]): boolean
         ItBol->>Bol: sosEnviado(): boolean
-        Bol->>CM: esTuCMDestino(cmUsuario: String): boolean
         Bol->>CEB: *sosActual(): boolean
         Bol->>CEBa: sosEnviado(): boolean
         CEBa->>Est: esEnviado(): boolean
+        ItBol->>Bol: esTuCMDestino(cmUsuario: String): boolean
+        Bol->>CM: esTuCMDestino(cmUsuario: String): boolean
         Gest->>Bol: getNombreCMOrigen(): String
         Bol->>CM: getNombre(): String
         Gest->>Bol: getNroPrecinto(): int
@@ -244,7 +246,7 @@ sequenceDiagram
 
     loop loop de remitos [Mientras haFinalizado() == false]
         BolSel->>ItRem: haFinalizado(): boolean
-        BolSel->>ItRem: actual(): Object
+        BolSel->>ItRem: elementoActual(): Object
         BolSel->>Rem: getNumero(): int
         BolSel->>Rem: buscarDocumentacion(): String[][]
         Rem->>Rem: crearIterador(elementos: DetalleRemito[]): IIterador
@@ -253,7 +255,7 @@ sequenceDiagram
 
         loop loop de detalle remitos [Mientras haFinalizado() == false]
             Rem->>ItDet: haFinalizado(): boolean
-            Rem->>ItDet: actual(): Object
+            Rem->>ItDet: elementoActual(): Object
             Rem->>Det: obtenerAsuntoYTipoDoc(): String[]
             Det->>Doc: getAsunto(): String
             Det->>Doc: mostrarTipoDocumentacion(): String

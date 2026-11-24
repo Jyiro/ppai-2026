@@ -13,8 +13,8 @@ Usá esta tabla como índice rápido cuando el tribunal te pida abrir un método
 | **Arranque y sesión inicial** | [Main.java](src/main/java/com/ppai/Main.java#L17-L19) · [JavaFxApp.java](src/main/java/com/ppai/JavaFxApp.java#L21-L56) | `Main.main` (`L17-L19`); `JavaFxApp.start` (`L21-L51`: sesión `L28-L31`, BCE `L37-L39`, inicio `L50`), `stop` (`L53-L56`: `JpaUtil.shutdown()`) |
 | **Pasos 1–3: Inicio y habilitación** | [PantallaRecepcionBolsin.java](src/main/java/com/ppai/boundary/cu28/PantallaRecepcionBolsin.java#L126-L140) · [GestorRecepcionBolsin.java](src/main/java/com/ppai/controller/cu28/GestorRecepcionBolsin.java#L83-L109) | `Pantalla.tomarOpcionRegistrarRecepcionBolsin` (`L126-L129`), `habilitar` (`L134-L140`); `Gestor.tomarOpcionRegistrarRecepcionBolsin` (`L83-L109`) |
 | **Pasos 4–8: Usuario logueado y su CM** | [GestorRecepcionBolsin.java](src/main/java/com/ppai/controller/cu28/GestorRecepcionBolsin.java#L114-L121) · [Sesion.java](src/main/java/com/ppai/domain/model/cu28/Sesion.java#L52-L54) · [Usuario.java](src/main/java/com/ppai/domain/model/cu28/Usuario.java#L38-L48) · [Empleado.java](src/main/java/com/ppai/domain/model/cu28/Empleado.java#L41-L43) · [PantallaRecepcionBolsin.java](src/main/java/com/ppai/boundary/cu28/PantallaRecepcionBolsin.java#L145-L159) | `Gestor.buscarUsuario` (`L114-L121`), `Sesion.getUsuario` (`L52-L54`), `Usuario.getCMEmpleado` (`L38-L40`), `Usuario.getEmpleado` (`L46-L48`), `Empleado.getCM` (`L41-L43`), `Pantalla.mostrarCM` (`L145-L159`) |
-| **Patrón Iterator: Interfaces propias** | [IAgregado.java](src/main/java/com/ppai/iterator/IAgregado.java#L10-L19) · [IIterador.java](src/main/java/com/ppai/iterator/IIterador.java#L10-L42) | `IAgregado.crearIterador` (`L10-L19`); `IIterador` (`primero`, `siguiente`, `haFinalizado`, `elementoActual`, `actual` `L10-L42`) |
-| **1.er Agregado e Iterador (Bolsines + filtro)** | [GestorRecepcionBolsin.java](src/main/java/com/ppai/controller/cu28/GestorRecepcionBolsin.java#L124-L165) · [IteradorBolsin.java](src/main/java/com/ppai/iterator/IteradorBolsin.java#L56-L126) · [Bolsin.java](src/main/java/com/ppai/domain/model/cu28/Bolsin.java#L86-L151) · [CambioEstadoBolsin.java](src/main/java/com/ppai/domain/model/cu28/CambioEstadoBolsin.java#L61-L68) · [Estado.java](src/main/java/com/ppai/domain/model/cu28/Estado.java#L58-L60) · [ComisionMedica.java](src/main/java/com/ppai/domain/model/cu28/ComisionMedica.java#L33-L59) | `Gestor` `implements IAgregado` (`L26`), `crearIterador` (`L124-L143`), `buscarBolsinEstadoEnviado` (`L149-L165`); `IteradorBolsin.comprobarFiltro` (`L56-L85`), `primero`/`siguiente`/`haFinalizado`/`actual` (`L88-L126`); `Bolsin.sosEnviado` (`L86-L105`), `esTuCMDestino` (`L108-L115`), `getNroPrecinto` (`L126-L138`), `getNombreCMOrigen` (`L149-L151`); `CambioEstadoBolsin.sosActual`/`sosEnviado` (`L61-L68`); `Estado.esEnviado` (`L58-L60`); `ComisionMedica.esTuCMDestino`/`getNombre` (`L33-L59`) |
+| **Patrón Iterator: Interfaces propias** | [IAgregado.java](src/main/java/com/ppai/iterator/IAgregado.java#L10-L19) · [IIterador.java](src/main/java/com/ppai/iterator/IIterador.java#L10-L42) | `IAgregado.crearIterador` (`L10-L19`); `IIterador` (`primero`, `siguiente`, `haFinalizado`, `elementoActual` `L10-L42`) |
+| **1.er Agregado e Iterador (Bolsines + filtro)** | [GestorRecepcionBolsin.java](src/main/java/com/ppai/controller/cu28/GestorRecepcionBolsin.java#L124-L165) · [IteradorBolsin.java](src/main/java/com/ppai/iterator/IteradorBolsin.java#L56-L126) · [Bolsin.java](src/main/java/com/ppai/domain/model/cu28/Bolsin.java#L86-L151) · [CambioEstadoBolsin.java](src/main/java/com/ppai/domain/model/cu28/CambioEstadoBolsin.java#L61-L68) · [Estado.java](src/main/java/com/ppai/domain/model/cu28/Estado.java#L58-L60) · [ComisionMedica.java](src/main/java/com/ppai/domain/model/cu28/ComisionMedica.java#L33-L59) | `Gestor` `implements IAgregado` (`L26`), `crearIterador` (`L124-L143`), `buscarBolsinEstadoEnviado` (`L149-L165`); `IteradorBolsin.comprobarFiltro` (`L56-L85`), `primero`/`siguiente`/`haFinalizado`/`elementoActual` (`L88-L126`); `Bolsin.sosEnviado` (`L86-L105`), `esTuCMDestino` (`L108-L115`), `getNroPrecinto` (`L126-L138`), `getNombreCMOrigen` (`L149-L151`); `CambioEstadoBolsin.sosActual`/`sosEnviado` (`L61-L68`); `Estado.esEnviado` (`L58-L60`); `ComisionMedica.esTuCMDestino`/`getNombre` (`L33-L59`) |
 | **Mostrar bolsines fuera del loop (corrección)** | [GestorRecepcionBolsin.java](src/main/java/com/ppai/controller/cu28/GestorRecepcionBolsin.java#L103-L108) · [PantallaRecepcionBolsin.java](src/main/java/com/ppai/boundary/cu28/PantallaRecepcionBolsin.java#L164-L238) | `Gestor` (`L103-L108`); `Pantalla.mostrarBolsines` (`L164-L200`), `mostrarNumeroPrecinto`/`mostrarCMOrigen` (`L217-L231`), `solicitarSeleccionBolsin` (`L236-L238`) |
 | **Filtros A1 (precinto) y A2 (CM origen)** | [PantallaRecepcionBolsin.java](src/main/java/com/ppai/boundary/cu28/PantallaRecepcionBolsin.java#L726-L749) · [GestorRecepcionBolsin.java](src/main/java/com/ppai/controller/cu28/GestorRecepcionBolsin.java#L170-L200) | Controles UI (`L726-L749`), `aplicarFiltros` ([L839-L848](src/main/java/com/ppai/boundary/cu28/PantallaRecepcionBolsin.java#L839-L848)), `mostrarAlerta` ([L499-L508](src/main/java/com/ppai/boundary/cu28/PantallaRecepcionBolsin.java#L499-L508)); `Gestor.filtrarBolsines` (`L170-L200`: A1 `L173-L186`, A2 `L188-L197`) |
 | **2.do y 3.er Agregado/Iterador (Remito y Detalles)** | [Bolsin.java](src/main/java/com/ppai/domain/model/cu28/Bolsin.java#L154-L193) · [IteradorRemito.java](src/main/java/com/ppai/iterator/IteradorRemito.java#L11-L73) · [Remito.java](src/main/java/com/ppai/domain/model/cu28/Remito.java#L32-L102) · [IteradorDetalleRemito.java](src/main/java/com/ppai/iterator/IteradorDetalleRemito.java#L12-L74) · [DetalleRemito.java](src/main/java/com/ppai/domain/model/cu28/DetalleRemito.java#L52-L60) · [Documentacion.java](src/main/java/com/ppai/domain/model/cu28/Documentacion.java#L56-L63) · [TipoDocumento.java](src/main/java/com/ppai/domain/model/cu28/TipoDocumento.java#L33-L35) | `Bolsin` `implements IAgregado` (`L34`), `crearIterador` (`L154-L171`), `obtenerInformacionRemito` (`L176-L193`); `IteradorRemito` (`L11-L73`); `Remito` `implements IAgregado` (`L32`), `getNumero` (`L63-L65`), `crearIterador` (`L68-L85`), `buscarDocumentacion` (`L88-L102`); `IteradorDetalleRemito` (`L12-L74`); `DetalleRemito.obtenerAsuntoYTipoDoc` (`L52-L60`); `Documentacion.getAsunto`/`mostrarTipoDocumentacion` (`L56-L63`); `TipoDocumento.getNombre` (`L33-L35`) |
@@ -108,7 +108,7 @@ flowchart LR
 2. **Dónde está implementado:**
    - [GestorRecepcionBolsin.java](src/main/java/com/ppai/controller/cu28/GestorRecepcionBolsin.java#L124-L165) (`crearIterador` `L124-L143`, `buscarBolsinEstadoEnviado` `L149-L165`).
    - [RepositorioJpaCU28.java](src/main/java/com/ppai/repository/cu28/RepositorioJpaCU28.java#L162-L170) (`obtenerTodosBolsines()` con JPQL `SELECT b FROM Bolsin b ORDER BY b.id`).
-   - [IteradorBolsin.java](src/main/java/com/ppai/iterator/IteradorBolsin.java#L19-L126) (`comprobarFiltro` `L56-L85`, `primero` `L88-L93`, `siguiente` `L96-L103`, `haFinalizado` `L106-L111`, `elementoActual`/`actual` `L114-L126`).
+   - [IteradorBolsin.java](src/main/java/com/ppai/iterator/IteradorBolsin.java#L19-L126) (`comprobarFiltro` `L56-L85`, `primero` `L88-L93`, `siguiente` `L96-L103`, `haFinalizado` `L106-L111`, `elementoActual` `L114-L126`).
    - [Bolsin.java](src/main/java/com/ppai/domain/model/cu28/Bolsin.java#L86-L151) (`sosEnviado` `L86-L105`, `esTuCMDestino` `L108-L115`, `getNroPrecinto` `L126-L138`, `getNombreCMOrigen` `L149-L151`).
    - [CambioEstadoBolsin.java](src/main/java/com/ppai/domain/model/cu28/CambioEstadoBolsin.java#L61-L68), [Estado.java](src/main/java/com/ppai/domain/model/cu28/Estado.java#L58-L60) y [ComisionMedica.java](src/main/java/com/ppai/domain/model/cu28/ComisionMedica.java#L33-L59).
 3. **Cómo funciona en código:**
@@ -116,7 +116,7 @@ flowchart LR
    - `crearIterador` instancia `new IteradorBolsin(array, new Object[]{ this.comisionMedicaEmpleado })`.
    - `itBol.primero()` posiciona `posicionActual = 0` y avanza en un `while` mientras `!comprobarFiltro(this.filtros)` (**look-ahead**), estacionándose en el primer bolsín válido (o al final si ninguno cumple).
    - Dentro de `while (!itBol.haFinalizado())`:
-     - `itBol.actual()` llama a `elementoActual()`, que ejecuta `comprobarFiltro(this.filtros)` y devuelve `lista[posicionActual]`.
+     - `itBol.elementoActual()` evalúa `comprobarFiltro(this.filtros)` y devuelve `lista[posicionActual]` (o `null` si no cumple el filtro).
      - `comprobarFiltro` verifica: (1) `bolsin.sosEnviado()` → busca el `CambioEstadoBolsin` vigente (`fechaHoraFin == null` en `sosActual()`) y delega en `actual.sosEnviado()` → `estado.esEnviado()`; y (2) `bolsin.esTuCMDestino(cmFiltro)` → `cmDestino.esTuCMDestino(...)` comparando ID (si es `ComisionMedica`) o nombre/ID (si es `String`).
      - El Gestor llama `bolsin.getNombreCMOrigen()` y `bolsin.getNroPrecinto()`, agrega el bolsín a `bolsinesEnviados`, y ejecuta `itBol.siguiente()` (que incrementa y vuelve a saltar inválidos).
 4. **Justificación de diseño:** Encapsular tanto el cursor (`posicionActual`) como las reglas de filtrado (`comprobarFiltro`) dentro de `IteradorBolsin` evita que el Gestor manipule índices o `if` de negocio dentro de su bucle. Además, agregar `getNombreCMOrigen()` en `Bolsin` evita exponer `ComisionMedica` al Gestor durante el loop.
@@ -292,7 +292,6 @@ classDiagram
         +siguiente() void
         +haFinalizado() boolean
         +elementoActual() Object
-        +actual() Object
     }
     IAgregado ..> IIterador : retorna
 
@@ -322,7 +321,6 @@ classDiagram
         +siguiente() void
         +haFinalizado() boolean
         +elementoActual() Object
-        +actual() Object
     }
     class IteradorRemito {
         -Remito[] lista
@@ -331,7 +329,6 @@ classDiagram
         +siguiente() void
         +haFinalizado() boolean
         +elementoActual() Object
-        +actual() Object
     }
     class IteradorDetalleRemito {
         -DetalleRemito[] lista
@@ -340,7 +337,6 @@ classDiagram
         +siguiente() void
         +haFinalizado() boolean
         +elementoActual() Object
-        +actual() Object
     }
 
     IAgregado <|.. GestorRecepcionBolsin
@@ -357,7 +353,7 @@ classDiagram
 ### Puntos clave para explicar en la defensa
 
 1. **¿Por qué se aplicó Iterator?**
-   En el CU 28 hay 3 recorridos sobre colecciones internas distintas (`todosBolsines`, `remitos`, `detalles`), donde además el primer recorrido requiere **filtrado** (`ENVIADO` + `cmDestino`). Iterator desacopla a los agregados (`GestorRecepcionBolsin`, `Bolsin`, `Remito`) de la estructura interna de la colección, del puntero `posicionActual` y de la lógica de filtrado, ofreciendo un protocolo uniforme (`primero()`, `haFinalizado()`, `actual()`/`elementoActual()`, `siguiente()`).
+   En el CU 28 hay 3 recorridos sobre colecciones internas distintas (`todosBolsines`, `remitos`, `detalles`), donde además el primer recorrido requiere **filtrado** (`ENVIADO` + `cmDestino`). Iterator desacopla a los agregados (`GestorRecepcionBolsin`, `Bolsin`, `Remito`) de la estructura interna de la colección, del puntero `posicionActual` y de la lógica de filtrado, ofreciendo un protocolo uniforme (`primero()`, `haFinalizado()`, `elementoActual()`, `siguiente()`).
 2. **¿Por qué NO se usa `java.util.Iterator` ni `java.lang.Iterable`?**
    Por consigna estricta de la cátedra de construir el patrón GoF **100% artesanal** para evidenciar cada participante (`IAgregado`, `IIterador`, agregados concretos e iteradores concretos) y sus mensajes en el diagrama de secuencia. Además, [IteratorPatternTest.java](src/test/java/com/ppai/IteratorPatternTest.java#L35-L81) lo valida automáticamente por reflexión y lectura de archivos fuente.
 3. **¿Cómo difieren los 3 iteradores?**
@@ -504,7 +500,7 @@ Conocer estos **7 hallazgos concretos** del código te evita sorpresas si el pro
 3. **¿Cómo funciona `IteradorBolsin` por dentro al filtrar? Mostramelo en código.**
    - *Respuesta:* Usa look-ahead: `primero()` parte de `0` y `siguiente()` avanza desde el cursor actual; ambos ejecutan un `while` saltando elementos mientras `!comprobarFiltro(filtros)`. `comprobarFiltro()` verifica `bolsin.sosEnviado()` y `bolsin.esTuCMDestino(cmFiltro)`. Mostrar [IteradorBolsin.java](src/main/java/com/ppai/iterator/IteradorBolsin.java#L56-L103).
 4. **¿Qué pasa si la colección está vacía o ningún bolsín cumple el filtro?**
-   - *Respuesta:* Si la lista está vacía, el constructor deja `posicionActual = 0`, `haFinalizado()` devuelve `true` de inmediato y `actual()` devuelve `null`. Si ningún elemento cumple `comprobarFiltro()`, `primero()` avanza `posicionActual` hasta `lista.length` y `haFinalizado()` devuelve `true` antes de entrar al `while`. Mostrar [IteradorBolsin.java](src/main/java/com/ppai/iterator/IteradorBolsin.java#L19-L111).
+   - *Respuesta:* Si la lista está vacía, el constructor deja `posicionActual = 0`, `haFinalizado()` devuelve `true` de inmediato y `elementoActual()` devuelve `null`. Si ningún elemento cumple `comprobarFiltro()`, `primero()` avanza `posicionActual` hasta `lista.length` y `haFinalizado()` devuelve `true` antes de entrar al `while`. Mostrar [IteradorBolsin.java](src/main/java/com/ppai/iterator/IteradorBolsin.java#L19-L111).
 5. **¿Qué alternativas tenían frente al Iterator propio?**
    - *Respuesta:* `java.util.Iterator`/`Iterable`, Streams de Java 8+ (`stream().filter()`), o filtrar directo en la BD con una consulta JPQL/SQL `WHERE`. Se eligió Iterator propio por el requisito de diseño GoF de la cátedra.
 

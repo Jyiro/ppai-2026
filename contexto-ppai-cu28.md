@@ -152,7 +152,7 @@ Aplicando el patrón **Iterator (GoF)** se desacopla a los agregados (`GestorReg
   * `+ crearIterador(elementos: Object[]): IIterador`
   * *Relaciones:* Dependencia (`..>`) hacia `IIterador` (por el tipo de retorno de `crearIterador()`).
 * **`<<interface>> IIterador`**
-  * `+ elementoActual(): Object` (o `actual(): Object`)
+  * `+ elementoActual(): Object`
   * `+ haFinalizado(): boolean`
   * `+ primero(): void`
   * `+ siguiente(): void`

@@ -48,7 +48,7 @@ El proyecto sigue el patrón arquitectónico **Boundary – Control – Entity (
 | **Boundary (Externo)** | `src/main/java/com/ppai/boundary/cu28/InterfazServidorCorreo.java` | Simula la interfaz externa del **CU 29** transmitiendo la `NotificacionRecepcionBolsin`. |
 | **Control** | `src/main/java/com/ppai/controller/cu28/GestorRecepcionBolsin.java` | Controlador del CU 28 y **1.er Agregado Concreto** (`implements IAgregado`). Orquesta mensajes entre Pantalla, Iteradores y Entidades. |
 | **Patrón Iterator** | `src/main/java/com/ppai/iterator/IAgregado.java` | Interfaz propia del Agregado: `crearIterador(Object[] elementos)`. |
-| **Patrón Iterator** | `src/main/java/com/ppai/iterator/IIterador.java` | Interfaz propia del Iterador: `primero()`, `siguiente()`, `haFinalizado()`, `elementoActual()`, `actual()`. |
+| **Patrón Iterator** | `src/main/java/com/ppai/iterator/IIterador.java` | Interfaz propia del Iterador: `primero()`, `siguiente()`, `haFinalizado()`, `elementoActual()`. |
 | **Patrón Iterator** | `src/main/java/com/ppai/iterator/IteradorBolsin.java` | **1.er Iterador Concreto**: recorre `Bolsin[]` filtrando por estado `ENVIADO` y CM destino mediante `comprobarFiltro(Object[])`. |
 | **Patrón Iterator** | `src/main/java/com/ppai/iterator/IteradorRemito.java` | **2.do Iterador Concreto**: recorre `Remito[]` del bolsín seleccionado. |
 | **Patrón Iterator** | `src/main/java/com/ppai/iterator/IteradorDetalleRemito.java` | **3.er Iterador Concreto**: recorre `DetalleRemito[]` de cada remito. |
@@ -88,7 +88,6 @@ El proyecto sigue el patrón arquitectónico **Boundary – Control – Entity (
      void siguiente();
      boolean haFinalizado();
      Object elementoActual();
-     Object actual(); // Alias conforme a message.md
      ```
    - **No extiende `java.util.Iterator`**.
 
@@ -106,7 +105,7 @@ El proyecto sigue el patrón arquitectónico **Boundary – Control – Entity (
     2. Llama a `bolsin.sosEnviado()` (estado actual del bolsín debe ser `ENVIADO`).
     3. Si existe criterio en `filtro[0]`, verifica `bolsin.esTuCMDestino((ComisionMedica) cmFiltro)` o `bolsin.esTuCMDestino((String) cmFiltro)`.
   - `haFinalizado()`: retorna `true` si `lista.length == 0` o `posicionActual >= lista.length`.
-  - `elementoActual()` / `actual()`: si no ha finalizado y `posicionActual >= 0`, ejecuta `comprobarFiltro(this.filtros)` (siguiendo el diagrama de secuencia de `message.md`) y retorna `lista[posicionActual]`.
+  - `elementoActual()`: si no ha finalizado y `posicionActual >= 0`, evalúa `comprobarFiltro(this.filtros)` (siguiendo el diagrama de secuencia de `message.md`) y retorna `lista[posicionActual]` solo si cumple el filtro (o `null` en caso contrario).
   - `siguiente()`: incrementa `posicionActual` y vuelve a saltar cualquier bolsín que no cumpla `comprobarFiltro(this.filtros)`.
 
 #### B. `IteradorRemito` (`src/main/java/com/ppai/iterator/IteradorRemito.java`)
@@ -116,7 +115,7 @@ El proyecto sigue el patrón arquitectónico **Boundary – Control – Entity (
 - **Cómo se ejecuta internamente:**
   - `primero()` reinicia `posicionActual = 0`.
   - `haFinalizado()` devuelve `posicionActual >= lista.length`.
-  - `elementoActual()` / `actual()` devuelve `lista[posicionActual]` (o `null` si finalizó).
+  - `elementoActual()` devuelve `lista[posicionActual]` (o `null` si finalizó).
   - `siguiente()` avanza `posicionActual++` mientras `!haFinalizado()`.
 
 #### C. `IteradorDetalleRemito` (`src/main/java/com/ppai/iterator/IteradorDetalleRemito.java`)
@@ -148,7 +147,6 @@ classDiagram
         +siguiente() void
         +haFinalizado() boolean
         +elementoActual() Object
-        +actual() Object
     }
 
     IAgregado ..> IIterador : retorna
@@ -162,7 +160,6 @@ classDiagram
         +siguiente() void
         +haFinalizado() boolean
         +elementoActual() Object
-        +actual() Object
     }
 
     class IteradorRemito {
@@ -172,7 +169,6 @@ classDiagram
         +siguiente() void
         +haFinalizado() boolean
         +elementoActual() Object
-        +actual() Object
     }
 
     class IteradorDetalleRemito {
@@ -182,7 +178,6 @@ classDiagram
         +siguiente() void
         +haFinalizado() boolean
         +elementoActual() Object
-        +actual() Object
     }
 
     IIterador <|.. IteradorBolsin
@@ -281,7 +276,7 @@ GestorRecepcionBolsin.tomarOpcionRegistrarRecepcionBolsin() [:95]
       │     └─ Posiciona posicionActual = 0 y salta elementos mientras !comprobarFiltro(this.filtros)
       └─► while (!itBol.haFinalizado()) [GestorRecepcionBolsin.java:149]
             ├─► itBol.haFinalizado() [IteradorBolsin.java:106]
-            ├─► bolsin = (Bolsin) itBol.actual() [IteradorBolsin.java:124 -> elementoActual():114]
+            ├─► bolsin = (Bolsin) itBol.elementoActual() [IteradorBolsin.java]
             │     └─► comprobarFiltro(this.filtros) [IteradorBolsin.java:56]
             │           ├─► bolsin.sosEnviado() [Bolsin.java:42]
             │           │     ├─► actual = obtenerCambioActual() [:204] ──► CambioEstadoBolsin.sosActual() [:29]
@@ -333,14 +328,14 @@ PantallaRecepcionBolsin.tomarSeleccionBolsin(bolsin) [PantallaRecepcionBolsin.ja
                    │     └─► new IteradorRemito(array) [IteradorRemito.java:16]
                    ├─► iterador.primero() [IteradorRemito.java:36]
                    └─► while (!iterador.haFinalizado()) [Bolsin.java:137]
-                         ├─► r = (Remito) iterador.actual() [IteradorRemito.java:61 -> :53]
+                         ├─► r = (Remito) iterador.elementoActual() [IteradorRemito.java]
                          ├─► r.getNumero() [Remito.java:30]
                          ├─► r.buscarDocumentacion() [Remito.java:55]
                          │     ├─► itDet = this.crearIterador(detalles) [Remito.java:35]
                          │     │     └─► new IteradorDetalleRemito(array) [IteradorDetalleRemito.java:17]
                          │     ├─► itDet.primero() [IteradorDetalleRemito.java:37]
                          │     └─► while (!itDet.haFinalizado()) [Remito.java:60]
-                         │           ├─► det = (DetalleRemito) itDet.actual() [IteradorDetalleRemito.java:62 -> :54]
+                         │           ├─► det = (DetalleRemito) itDet.elementoActual() [IteradorDetalleRemito.java]
                          │           ├─► det.obtenerAsuntoYTipoDoc() [DetalleRemito.java:27] *(reemplaza a getDocumentacion() en el diseño)*
                          │           │     ├─► documentacion.getAsunto() [Documentacion.java:29]
                          │           │     └─► documentacion.mostrarTipoDocumentacion() [Documentacion.java:34]
@@ -581,7 +576,7 @@ Con la última ejecución de `mvn clean test` (`BUILD SUCCESS` — **32 pruebas 
 - **`src/test/java/com/ppai/IteratorPatternTest.java` (14 pruebas):**
   - Verifica por **reflexión y lectura estática de archivos** la ausencia total de `java.util.Iterator`, `java.util.Iterable` y `java.lang.Iterable`.
   - Verifica que `GestorRecepcionBolsin`, `Bolsin` y `Remito` implementan `IAgregado`, y que `IteradorBolsin`, `IteradorRemito` e `IteradorDetalleRemito` implementan `IIterador`.
-  - Prueba contratos individuales de `primero()`, `siguiente()`, `haFinalizado()`, `elementoActual()`, `actual()`, `comprobarFiltro()`, colecciones vacías, nulas y reinicio de iteración.
+  - Prueba contratos individuales de `primero()`, `siguiente()`, `haFinalizado()`, `elementoActual()`, `comprobarFiltro()`, colecciones vacías, nulas y reinicio de iteración.
 - **`src/test/java/com/ppai/CU28Test.java` (16 pruebas):**
   - Valida el Flujo Básico (Opción 1), Flujos Alternativos **A1, A2, A3, A4, A5** (tanto permitido en CMC como bloqueado en CMJ Rosario), **A6** (no confirmación sin mutar estados ni disparar CU 29), **Obs. 1** (cancelación y reinicio con listas inmutables) y ciclo de vida consecutivo entre recepciones.
 - **`src/test/java/com/ppai/MainTest.java` (2 pruebas):**
