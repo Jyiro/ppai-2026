@@ -1,56 +1,66 @@
 package com.ppai.domain.model.cu28;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 /**
  * Entidad Sesion — CU 28: Registrar Recepción de Bolsín.
- * Representa la sesión activa del usuario que ejecuta el CU.
+ * Representa la sesión activa del usuario que ejecuta el CU (Dominio OO puro).
  */
-@Entity
-@Table(name = "sesion")
 public class Sesion {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private final Usuario usuario;
+    private final LocalDateTime fechaHoraInicio;
+    private LocalDateTime fechaHoraFin;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "usuario_id", nullable = false)
-    private Usuario usuario;
-
-    @Column(name = "fecha_hora_inicio", nullable = false)
-    private LocalDateTime fechaHoraInicio;
-
-    protected Sesion() {
-        this.fechaHoraInicio = LocalDateTime.now();
-    }
-
-    public Sesion(Usuario usuario) {
+    public Sesion(Usuario usuario, LocalDateTime fechaHoraInicio) {
         this.usuario = usuario;
-        this.fechaHoraInicio = LocalDateTime.now();
+        this.fechaHoraInicio = fechaHoraInicio;
+        this.fechaHoraFin = null;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public LocalDateTime getFechaHoraInicio() {
-        return fechaHoraInicio;
+    /** Indica si la sesión continúa abierta (sin fechaHoraFin). */
+    public boolean estaActiva() {
+        return this.fechaHoraFin == null;
     }
 
     /** DS-CU28 paso 5: Retorna el usuario autenticado en la sesión activa. */
     public Usuario getUsuario() {
         return usuario;
     }
-}
 
+    /** DS-CU28 paso 6: Delega en Usuario#getCMEmpleado(). */
+    public ComisionMedica getCMEmpleado() {
+        return usuario != null ? usuario.getCMEmpleado() : null;
+    }
+
+    /** Retorna el empleado asociado al usuario logueado para auditoría de estados. */
+    public Empleado getEmpleadoLogueado() {
+        return usuario != null ? usuario.getEmpleado() : null;
+    }
+
+    public LocalDateTime getFechaHoraInicio() {
+        return fechaHoraInicio;
+    }
+
+    public LocalDateTime getFechaHoraFin() {
+        return fechaHoraFin;
+    }
+
+    public void setFechaHoraFin(LocalDateTime fechaHoraFin) {
+        this.fechaHoraFin = fechaHoraFin;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Sesion that)) return false;
+        return Objects.equals(usuario, that.usuario)
+                && Objects.equals(fechaHoraInicio, that.fechaHoraInicio);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(usuario, fechaHoraInicio);
+    }
+}

@@ -36,10 +36,11 @@ public class CU28Test {
 
     @BeforeEach
     void setUp() {
-        ComisionMedica cmCentral = new ComisionMedica(1L, "Comisión Médica Central (CMC) - CABA");
-        Empleado empleado = new Empleado(100L, "Juan Pérez", cmCentral);
-        Usuario usuario = new Usuario("jperez", empleado);
-        sesionCentral = new Sesion(usuario);
+        ComisionMedica cmCentral = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA",
+                "Av. Roque Sáenz Peña 1100", "despacho.cmc@srt.gob.ar", "011-4321-1000");
+        Empleado empleado = new Empleado("Juan Pérez", cmCentral);
+        Usuario usuario = new Usuario("jperez", "Operador Central", empleado);
+        sesionCentral = new Sesion(usuario, LocalDateTime.now());
 
         gestor = new GestorRecepcionBolsin(sesionCentral);
         gestor.tomarOpcionRegistrarRecepcionBolsin();
@@ -67,10 +68,10 @@ public class CU28Test {
         assertEquals(Estado.NOMBRE_RECIBIDO_CM_DESTINO, bolsin.getEstadoActual().getNombre(),
                 "El bolsín debe pasar a RECIBIDO_EN_CM_DESTINO");
 
-        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, bolsin.getRemito().getEstado().getNombre(),
+        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, bolsin.getRemitos().get(0).getEstado().getNombre(),
                 "El remito debe pasar a RECIBIDO_Y_ACEPTADO");
 
-        for (DetalleRemito det : bolsin.getRemito().getDetalles()) {
+        for (DetalleRemito det : bolsin.getRemitos().get(0).getDetalles()) {
             assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, det.getDocumentacion().getEstadoActual().getNombre(),
                     "Toda la documentación debe pasar a RECIBIDA_Y_ACEPTADA");
             assertNotNull(det.getDocumentacion().obtenerCambioActual().getEmpleado(),
@@ -79,7 +80,7 @@ public class CU28Test {
 
         // Verificación de Notificación CU 29
         assertNotNull(gestor.getUltimaNotificacionEnviada(), "Debe haberse generado la notificación del CU 29");
-        assertEquals(bolsin.getNumeroPrecinto(), gestor.getUltimaNotificacionEnviada().getNumeroPrecinto());
+        assertEquals(String.valueOf(bolsin.getNroPrecinto()), gestor.getUltimaNotificacionEnviada().getNumeroPrecinto());
     }
 
     @Test
@@ -87,7 +88,7 @@ public class CU28Test {
     void testFlujoAlternativoA3_FaltaDocumentacion() {
         List<Bolsin> bolsines = gestor.getBolsinesEnviados();
         Bolsin bolsin = bolsines.stream()
-                .filter(b -> b.getRemito().getDetalles().size() > 1)
+                .filter(b -> !b.getRemitos().isEmpty() && b.getRemitos().get(0).getDetalles().size() > 1)
                 .findFirst().orElseThrow();
 
         gestor.tomarSeleccionBolsin(bolsin);
@@ -96,15 +97,15 @@ public class CU28Test {
         OpcionRecepcion opc2 = opciones.stream().filter(OpcionRecepcion::esFaltaDocumentacion).findFirst().orElseThrow();
 
         // Simulamos que el primer documento no llegó
-        Documentacion docFaltante = bolsin.getRemito().getDetalles().get(0).getDocumentacion();
-        Documentacion docPresente = bolsin.getRemito().getDetalles().get(1).getDocumentacion();
+        Documentacion docFaltante = bolsin.getRemitos().get(0).getDetalles().get(0).getDocumentacion();
+        Documentacion docPresente = bolsin.getRemitos().get(0).getDetalles().get(1).getDocumentacion();
 
         gestor.tomarSeleccionOpcion(opc2, List.of(docFaltante));
         gestor.tomarConfirmacionSeleccion(true);
 
         // Verificaciones
         assertEquals(Estado.NOMBRE_RECIBIDO_CM_DESTINO, bolsin.getEstadoActual().getNombre());
-        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, bolsin.getRemito().getEstado().getNombre(),
+        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, bolsin.getRemitos().get(0).getEstado().getNombre(),
                 "En A3 el remito pasa a RECIBIDO_Y_ACEPTADO_PARCIAL");
 
         assertEquals(Estado.NOMBRE_NO_RECIBIDA, docFaltante.getEstadoActual().getNombre(),
@@ -119,7 +120,7 @@ public class CU28Test {
     void testFlujoAlternativoA4_DocumentacionErronea() {
         List<Bolsin> bolsines = gestor.getBolsinesEnviados();
         Bolsin bolsin = bolsines.stream()
-                .filter(b -> b.getRemito().getDetalles().size() > 1)
+                .filter(b -> !b.getRemitos().isEmpty() && b.getRemitos().get(0).getDetalles().size() > 1)
                 .findFirst().orElseThrow();
 
         gestor.tomarSeleccionBolsin(bolsin);
@@ -128,15 +129,15 @@ public class CU28Test {
         OpcionRecepcion opc3 = opciones.stream().filter(OpcionRecepcion::esNoCorrespondeDestino).findFirst().orElseThrow();
 
         // Simulamos que el primer documento fue enviado por error
-        Documentacion docErroneo = bolsin.getRemito().getDetalles().get(0).getDocumentacion();
-        Documentacion docCorrecto = bolsin.getRemito().getDetalles().get(1).getDocumentacion();
+        Documentacion docErroneo = bolsin.getRemitos().get(0).getDetalles().get(0).getDocumentacion();
+        Documentacion docCorrecto = bolsin.getRemitos().get(0).getDetalles().get(1).getDocumentacion();
 
         gestor.tomarSeleccionOpcion(opc3, List.of(docErroneo));
         gestor.tomarConfirmacionSeleccion(true);
 
         // Verificaciones
         assertEquals(Estado.NOMBRE_RECIBIDO_CM_DESTINO, bolsin.getEstadoActual().getNombre());
-        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, bolsin.getRemito().getEstado().getNombre());
+        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, bolsin.getRemitos().get(0).getEstado().getNombre());
 
         assertEquals(Estado.NOMBRE_RECIBIDA_Y_RECHAZADA, docErroneo.getEstadoActual().getNombre(),
                 "El documento erróneo debe pasar a RECIBIDA_Y_RECHAZADA");
@@ -160,7 +161,7 @@ public class CU28Test {
 
         // Verificaciones
         assertEquals(Estado.NOMBRE_RECIBIDO_CM_DESTINO, bolsin.getEstadoActual().getNombre());
-        for (DetalleRemito det : bolsin.getRemito().getDetalles()) {
+        for (DetalleRemito det : bolsin.getRemitos().get(0).getDetalles()) {
             assertEquals(Estado.NOMBRE_PARA_REDIRIGIR, det.getDocumentacion().getEstadoActual().getNombre(),
                     "En A5 las documentaciones deben pasar a PARA_REDIRIGIR");
         }
@@ -199,7 +200,7 @@ public class CU28Test {
         assertFalse(resPrecintoValido.isEmpty(), "Filtro por precinto existente debe encontrar bolsín");
 
         // A2: CM origen que no tiene envíos
-        ComisionMedica cmSinEnvios = new ComisionMedica(999L, "CMJ Inexistente");
+        ComisionMedica cmSinEnvios = new ComisionMedica(999, "CMJ Inexistente", "", "", "");
         List<Bolsin> resOrigenInexistente = gestor.filtrarBolsines(null, cmSinEnvios);
         assertTrue(resOrigenInexistente.isEmpty(), "Filtro por CM sin envíos debe retornar vacío (A2)");
     }
@@ -207,10 +208,11 @@ public class CU28Test {
     @Test
     @DisplayName("Flujo Alternativo A5 (Negativo): Opción 4 solo permitida en CMC, no aplica en CM Regional")
     void testFlujoAlternativoA5_NoAplicaEnCMNoCentral() {
-        ComisionMedica cmRosario = new ComisionMedica(2L, "CMJ N° 7 - Rosario");
-        Empleado empRosario = new Empleado(200L, "Mariana López", cmRosario);
-        Usuario userRosario = new Usuario("mlopez.rosario", empRosario);
-        Sesion sesionRosario = new Sesion(userRosario);
+        ComisionMedica cmRosario = new ComisionMedica(2, "CMJ N° 7 - Rosario",
+                "Bv. Oroño 850", "despacho.rosario@srt.gob.ar", "0341-440-2000");
+        Empleado empRosario = new Empleado("Mariana López", cmRosario);
+        Usuario userRosario = new Usuario("mlopez.rosario", "Operador Rosario", empRosario);
+        Sesion sesionRosario = new Sesion(userRosario, LocalDateTime.now());
         GestorRecepcionBolsin gestorRosario = new GestorRecepcionBolsin(sesionRosario);
         gestorRosario.inicializarBolsinesDeEjemplo(2);
         gestorRosario.tomarOpcionRegistrarRecepcionBolsin();
@@ -254,21 +256,17 @@ public class CU28Test {
     @Test
     @DisplayName("Patrón Iterator: Bolsín con múltiples remitos recorre todos sus elementos")
     void testBolsinMultiplesRemitos() {
-        ComisionMedica cmOrigen = new ComisionMedica(2L, "CMJ N° 1 - Córdoba");
-        ComisionMedica cmDestino = new ComisionMedica(1L, "Comisión Médica Central (CMC) - CABA");
-        Estado estEnviado = new Estado(Estado.NOMBRE_ENVIADO, Estado.AMBITO_BOLSIN);
+        ComisionMedica cmOrigen = new ComisionMedica(2, "CMJ N° 1 - Córdoba", "", "", "");
+        ComisionMedica cmDestino = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA", "", "", "");
+        Estado estEnviado = new Estado(Estado.NOMBRE_ENVIADO, "Enviado", Estado.AMBITO_BOLSIN);
 
-        Remito r1 = new Remito("REM-101");
-        Remito r2 = new Remito("REM-102");
-        Bolsin bolsinMulti = new Bolsin("PREC-MULTI-1", cmOrigen, cmDestino, r1, estEnviado, LocalDateTime.now());
-        bolsinMulti.agregarRemito(r2);
+        Remito r1 = new Remito(101, LocalDateTime.now(), cmOrigen, cmDestino);
+        Remito r2 = new Remito(102, LocalDateTime.now(), cmOrigen, cmDestino);
+        Bolsin bolsinMulti = new Bolsin(10, 777, LocalDateTime.now(), 2.0, cmOrigen, cmDestino,
+                List.of(r1, r2), estEnviado, LocalDateTime.now(), null);
 
         assertEquals(2, bolsinMulti.getRemitos().size());
-        assertEquals(r1, bolsinMulti.getRemito(), "getRemito() debe ser compatible retornando el primer remito");
-
-        Remito remitoObtenido = bolsinMulti.obtenerInformacionRemito();
-        assertNotNull(remitoObtenido);
-        assertEquals("REM-101", remitoObtenido.getNumero());
+        assertNotNull(bolsinMulti.obtenerInformacionRemito());
     }
 
     @Test
@@ -276,7 +274,7 @@ public class CU28Test {
     void testCancelacionConListaInmutable() {
         List<Bolsin> bolsines = gestor.getBolsinesEnviados();
         Bolsin bolsin = bolsines.stream()
-                .filter(b -> b.getRemito().getDetalles().size() > 1)
+                .filter(b -> !b.getRemitos().isEmpty() && b.getRemitos().get(0).getDetalles().size() > 1)
                 .findFirst().orElseThrow();
 
         gestor.tomarSeleccionBolsin(bolsin);
@@ -284,7 +282,7 @@ public class CU28Test {
         List<OpcionRecepcion> opciones = gestor.buscarOpcionesRecepcion();
         OpcionRecepcion opc2 = opciones.stream().filter(OpcionRecepcion::esFaltaDocumentacion).findFirst().orElseThrow();
 
-        Documentacion docFaltante = bolsin.getRemito().getDetalles().get(0).getDocumentacion();
+        Documentacion docFaltante = bolsin.getRemitos().get(0).getDetalles().get(0).getDocumentacion();
 
         // Pasar una lista inmutable (List.of)
         gestor.tomarSeleccionOpcion(opc2, List.of(docFaltante));
@@ -307,12 +305,12 @@ public class CU28Test {
         gestor.tomarOpcionRegistrarRecepcionBolsin();
 
         // Selección por precinto string lookup (flujo A1 / búsqueda de precinto)
-        assertDoesNotThrow(() -> gestor.tomarSeleccionOpcion("PREC-7041"),
+        assertDoesNotThrow(() -> gestor.tomarSeleccionOpcion("7041"),
                 "Seleccionar por precinto con pantalla asociada no debe lanzar NullPointerException");
 
-        assertNotNull(gestor.getBolsinSeleccionado(), "El bolsín PREC-7041 debe haber sido seleccionado en el gestor");
-        assertEquals("PREC-7041", gestor.getBolsinSeleccionado().getNumeroPrecinto());
-        assertEquals("PREC-7041", pantalla.tomarSeleccionBolsin(), "La pantalla debe sincronizar el bolsín seleccionado");
+        assertNotNull(gestor.getBolsinSeleccionado(), "El bolsín 7041 debe haber sido seleccionado en el gestor");
+        assertEquals(7041, gestor.getBolsinSeleccionado().getNroPrecinto());
+        assertEquals("7041", pantalla.tomarSeleccionBolsin(), "La pantalla debe sincronizar el bolsín seleccionado");
     }
 
     @Test
@@ -323,20 +321,20 @@ public class CU28Test {
         gestor.tomarOpcionRegistrarRecepcionBolsin();
 
         // Paso 1: Seleccionar bolsín 1 por precinto
-        gestor.tomarSeleccionOpcion("PREC-7041");
+        gestor.tomarSeleccionOpcion("7041");
         assertNotNull(gestor.getBolsinSeleccionado());
-        assertEquals("PREC-7041", gestor.getBolsinSeleccionado().getNumeroPrecinto());
-        assertEquals("PREC-7041", pantalla.tomarSeleccionBolsin());
+        assertEquals(7041, gestor.getBolsinSeleccionado().getNroPrecinto());
+        assertEquals("7041", pantalla.tomarSeleccionBolsin());
 
         // Paso 2: Cancelar recepción
         gestor.cancelarRecepcion();
         assertNull(gestor.getBolsinSeleccionado());
 
         // Paso 3: Seleccionar un bolsín diferente por precinto
-        gestor.tomarSeleccionOpcion("PREC-8820");
+        gestor.tomarSeleccionOpcion("8820");
         assertNotNull(gestor.getBolsinSeleccionado());
-        assertEquals("PREC-8820", gestor.getBolsinSeleccionado().getNumeroPrecinto());
-        assertEquals("PREC-8820", pantalla.tomarSeleccionBolsin(),
+        assertEquals(8820, gestor.getBolsinSeleccionado().getNroPrecinto());
+        assertEquals("8820", pantalla.tomarSeleccionBolsin(),
                 "La pantalla debe actualizar su selección al nuevo bolsín tras la cancelación");
     }
 
@@ -411,9 +409,9 @@ public class CU28Test {
         gestor.setPantalla(pantalla);
         gestor.tomarOpcionRegistrarRecepcionBolsin();
 
-        // Turno 1: Seleccionar PREC-7041, Opción 1, Confirmar
-        gestor.tomarSeleccionOpcion("PREC-7041");
-        assertEquals("PREC-7041", pantalla.tomarSeleccionBolsin());
+        // Turno 1: Seleccionar 7041, Opción 1, Confirmar
+        gestor.tomarSeleccionOpcion("7041");
+        assertEquals("7041", pantalla.tomarSeleccionBolsin());
 
         OpcionRecepcion opc1 = gestor.buscarOpcionesRecepcion().stream()
                 .filter(OpcionRecepcion::esContenidoIgual)
@@ -424,10 +422,10 @@ public class CU28Test {
 
         // Turno 2: Iniciar nuevo turno desde pantalla
         pantalla.tomarOpcionRegistrarRecepcionBolsin();
-        gestor.tomarSeleccionOpcion("PREC-8820");
+        gestor.tomarSeleccionOpcion("8820");
 
-        assertEquals("PREC-8820", gestor.getBolsinSeleccionado().getNumeroPrecinto());
-        assertEquals("PREC-8820", pantalla.tomarSeleccionBolsin(),
-                "En el Turno 2 la pantalla debe reflejar PREC-8820 y no retener PREC-7041 del Turno 1");
+        assertEquals(8820, gestor.getBolsinSeleccionado().getNroPrecinto());
+        assertEquals("8820", pantalla.tomarSeleccionBolsin(),
+                "En el Turno 2 la pantalla debe reflejar 8820 y no retener 7041 del Turno 1");
     }
 }

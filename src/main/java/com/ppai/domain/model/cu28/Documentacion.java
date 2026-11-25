@@ -1,55 +1,45 @@
 package com.ppai.domain.model.cu28;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderColumn;
-import jakarta.persistence.Table;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Entidad Documentacion — CU 28: Registrar Recepción de Bolsín.
- * Representa un documento adjunto en un DetalleRemito.
- * (Punto de extensión: Patrón State en domain/state/cu28/)
+ * Representa un documento adjunto en un DetalleRemito (Dominio OO puro).
  */
-@Entity
-@Table(name = "documentacion")
 public class Documentacion {
 
-    @Id
-    private Long id;
+    private final int numero;
+    private final String asunto;
+    private final LocalDateTime fechaPase;
+    private final TipoDocumento tipoDocumento;
+    private final ComisionMedica cmOrigen;
+    private final List<CambioEstadoDocumentacion> cambiosDeEstado;
 
-    @Column(name = "asunto", nullable = false)
-    private String asunto;
-
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "tipo_documento_id", nullable = false)
-    private TipoDocumento tipoDocumento;
-
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
-    @JoinColumn(name = "documentacion_id")
-    @OrderColumn(name = "orden")
-    private List<CambioEstadoDocumentacion> cambiosDeEstado = new ArrayList<>();
-
-    protected Documentacion() {
+    public Documentacion(int numero,
+                         String asunto,
+                         LocalDateTime fechaPase,
+                         TipoDocumento tipoDocumento,
+                         ComisionMedica cmOrigen,
+                         Estado estadoInicial,
+                         LocalDateTime fechaHoraInicio,
+                         Empleado empleadoInicial) {
+        this.numero = numero;
+        this.asunto = asunto;
+        this.fechaPase = fechaPase;
+        this.tipoDocumento = tipoDocumento;
+        this.cmOrigen = cmOrigen;
+        this.cambiosDeEstado = new ArrayList<>();
+        if (estadoInicial != null) {
+            this.cambiosDeEstado.add(new CambioEstadoDocumentacion(fechaHoraInicio, estadoInicial, empleadoInicial));
+        }
     }
 
-    public Documentacion(Long id, String asunto, TipoDocumento tipoDocumento,
-                         Estado estadoInicial, LocalDateTime fechaHoraInicio) {
-        this.id = id;
-        this.asunto = asunto;
-        this.tipoDocumento = tipoDocumento;
-        this.cambiosDeEstado = new ArrayList<>();
-        this.cambiosDeEstado.add(new CambioEstadoDocumentacion(estadoInicial, fechaHoraInicio));
+    public int getNumero() {
+        return numero;
     }
 
     /** DS-CU28 loop interno sec. 4: Retorna el asunto del documento. */
@@ -57,54 +47,59 @@ public class Documentacion {
         return asunto;
     }
 
+    public LocalDateTime getFechaPase() {
+        return fechaPase;
+    }
+
     /** DS-CU28 loop interno sec. 4: Delega en TipoDocumento#getNombre(). */
     public String mostrarTipoDocumentacion() {
-        return tipoDocumento.getNombre();
+        return tipoDocumento != null ? tipoDocumento.getNombre() : "";
     }
 
-    /** DS-CU28 loop sec. 8: Cierra el estado actual y crea el nuevo cambio de estado (Flujo básico y docs conformes). */
-    public void aceptar(Estado estadoRecibidoYAceptado, LocalDateTime fechaHoraActual) {
-        aceptar(estadoRecibidoYAceptado, fechaHoraActual, null);
+    public TipoDocumento getTipoDocumento() {
+        return tipoDocumento;
     }
 
-    public void aceptar(Estado estadoRecibidoYAceptado, LocalDateTime fechaHoraActual, Empleado empleado) {
-        cerrarCambioActual(fechaHoraActual);
-        newCambioEstadoDocumentacion(estadoRecibidoYAceptado, fechaHoraActual, empleado);
+    public ComisionMedica getCmOrigen() {
+        return cmOrigen;
     }
 
-    /** A3: Marca la documentación como NO_RECIBIDA. */
-    public void marcarNoRecibida(Estado estadoNoRecibida, LocalDateTime fechaHoraActual, Empleado empleado) {
-        cerrarCambioActual(fechaHoraActual);
-        newCambioEstadoDocumentacion(estadoNoRecibida, fechaHoraActual, empleado);
+    public List<CambioEstadoDocumentacion> getCambiosDeEstado() {
+        return Collections.unmodifiableList(cambiosDeEstado);
     }
 
-    /** A4: Marca la documentación como RECIBIDA_Y_RECHAZADA (no corresponde al destino). */
-    public void rechazar(Estado estadoRechazado, LocalDateTime fechaHoraActual, Empleado empleado) {
-        cerrarCambioActual(fechaHoraActual);
-        newCambioEstadoDocumentacion(estadoRechazado, fechaHoraActual, empleado);
+    /** DS-CU28 loop sec. 8: Cierra el estado actual y pasa a Recibida y aceptada. */
+    public void aceptar(LocalDateTime fechaHoraActual, Estado estadoRecibidaYAceptada, Empleado empleado) {
+        registrarTransicion(fechaHoraActual, estadoRecibidaYAceptada, empleado);
     }
 
-    /** A5: Marca la documentación como PARA_REDIRIGIR (destino es CMC). */
-    public void paraRedirigir(Estado estadoParaRedirigir, LocalDateTime fechaHoraActual, Empleado empleado) {
-        cerrarCambioActual(fechaHoraActual);
-        newCambioEstadoDocumentacion(estadoParaRedirigir, fechaHoraActual, empleado);
+    /** A3 / Máquina de estados: Marca la documentación como No recibida. */
+    public void marcarNoRecibida(LocalDateTime fechaHoraActual, Estado estadoNoRecibida, Empleado empleado) {
+        registrarTransicion(fechaHoraActual, estadoNoRecibida, empleado);
     }
 
-    private void cerrarCambioActual(LocalDateTime fechaHoraActual) {
+    /** A4 / Máquina de estados: Marca la documentación como Recibida y rechazada. */
+    public void marcarRecibidaRechazada(LocalDateTime fechaHoraActual, Estado estadoRecibidaYRechazada, Empleado empleado) {
+        registrarTransicion(fechaHoraActual, estadoRecibidaYRechazada, empleado);
+    }
+
+    /** A5 / Máquina de estados: Marca la documentación como Para redirigir (solo CMC). */
+    public void marcarParaRedirigir(LocalDateTime fechaHoraActual, Estado estadoParaRedirigir, Empleado empleado) {
+        registrarTransicion(fechaHoraActual, estadoParaRedirigir, empleado);
+    }
+
+    /** DS-CU28 loop sec. 8: Crea y agrega el nuevo CambioEstadoDocumentacion. */
+    public void newCambioEstadoDocumentacion(LocalDateTime fechaHoraInicio, Estado estado, Empleado empleado) {
+        CambioEstadoDocumentacion nuevo = new CambioEstadoDocumentacion(fechaHoraInicio, estado, empleado);
+        this.cambiosDeEstado.add(nuevo);
+    }
+
+    private void registrarTransicion(LocalDateTime fechaHoraActual, Estado nuevoEstado, Empleado empleado) {
         CambioEstadoDocumentacion actual = obtenerCambioActual();
         if (actual != null) {
             actual.setFechaHoraFin(fechaHoraActual);
         }
-    }
-
-    /** DS-CU28 loop sec. 8: Crea y agrega el nuevo CambioEstadoDocumentacion. */
-    public void newCambioEstadoDocumentacion(Estado estado, LocalDateTime fechaHoraInicio) {
-        newCambioEstadoDocumentacion(estado, fechaHoraInicio, null);
-    }
-
-    public void newCambioEstadoDocumentacion(Estado estado, LocalDateTime fechaHoraInicio, Empleado empleado) {
-        CambioEstadoDocumentacion nuevo = new CambioEstadoDocumentacion(estado, fechaHoraInicio, empleado);
-        this.cambiosDeEstado.add(nuevo);
+        newCambioEstadoDocumentacion(fechaHoraActual, nuevoEstado, empleado);
     }
 
     public CambioEstadoDocumentacion obtenerCambioActual() {
@@ -122,34 +117,21 @@ public class Documentacion {
         return actual != null ? actual.getEstado() : null;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public TipoDocumento getTipoDocumento() {
-        return tipoDocumento;
-    }
-
-    public List<CambioEstadoDocumentacion> getCambiosDeEstado() {
-        return cambiosDeEstado;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Documentacion that)) return false;
-        return Objects.equals(id, that.id);
+        return numero == that.numero;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(numero);
     }
 
     @Override
     public String toString() {
-        return "Documentacion{id=" + id + ", asunto='" + asunto
+        return "Documentacion{numero=" + numero + ", asunto='" + asunto
                 + "', tipo=" + tipoDocumento + "}";
     }
 }
-

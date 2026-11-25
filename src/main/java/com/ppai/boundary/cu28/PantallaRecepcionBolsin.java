@@ -147,7 +147,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
         if (gestor != null && gestor.getSesionActual() != null && gestor.getSesionActual().getUsuario() != null) {
             Usuario usuario = gestor.getSesionActual().getUsuario();
             String nombreEmpleado = gestor.getEmpleadoActual() != null ? gestor.getEmpleadoActual().getNombre() : "";
-            String textoUsuario = "Usuario: " + usuario.getUsername()
+            String textoUsuario = "Usuario: " + usuario.getNombre()
                     + (nombreEmpleado != null && !nombreEmpleado.isEmpty() ? " (" + nombreEmpleado + ")" : "");
             if (lblUsuarioActivo != null) {
                 lblUsuarioActivo.setText(textoUsuario);
@@ -208,7 +208,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
             return;
         }
         for (ComisionMedica existente : lista) {
-            if (existente.getId() != null && existente.getId().equals(candidata.getId())) {
+            if (existente.getCodigo() == candidata.getCodigo()) {
                 return;
             }
         }
@@ -252,7 +252,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
     }
 
     public String tomarSeleccionBolsin() {
-        return bolsinSeleccionadoEnTabla != null ? bolsinSeleccionadoEnTabla.getNumeroPrecinto() : "";
+        return bolsinSeleccionadoEnTabla != null ? String.valueOf(bolsinSeleccionadoEnTabla.getNroPrecinto()) : "";
     }
 
     public void tomarSeleccionOpcion(String seleccion) {
@@ -268,16 +268,17 @@ public class PantallaRecepcionBolsin extends BorderPane {
                 : this.bolsinSeleccionadoEnTabla;
         if (bolsin != null) {
             this.bolsinSeleccionadoEnTabla = bolsin;
-            lblDetallePrecinto.setText(bolsin.getNumeroPrecinto());
+            lblDetallePrecinto.setText(String.valueOf(bolsin.getNroPrecinto()));
             lblDetalleCMOrigen.setText("CM Origen: " + bolsin.getCMOrigen().getNombre());
             lblDetalleFechaEnvio.setText("Fecha de Envío: " + bolsin.getFechaEnvio().format(FORMATO_FECHA));
         }
-        lblDetalleNumeroRemito.setText(remito.getNumero());
+        lblDetalleNumeroRemito.setText(String.valueOf(remito.getNumero()));
         lblDetalleCantDocs.setText(String.valueOf(remito.getDetalles().size()));
 
         // Cargar filas de documentación con refresco reactivo al tildar/destildar ¿Conforme?
+        remito.buscarDocumentacion();
         List<DocumentacionRow> rows = new ArrayList<>();
-        for (DetalleRemito d : remito.buscarDocumentacion()) {
+        for (DetalleRemito d : remito.getDetalles()) {
             DocumentacionRow row = new DocumentacionRow(d.getDocumentacion());
             row.seleccionadaProperty().addListener((obs, oldVal, newVal) -> tblDocumentacion.refresh());
             rows.add(row);
@@ -339,12 +340,12 @@ public class PantallaRecepcionBolsin extends BorderPane {
      * DS-CU28 paso 20: Muestra los datos consolidados y solicita la confirmación de la recepción.
      */
     public void solicitarConfirmacionSeleccion(Bolsin bolsin, Remito remito, OpcionRecepcion opcion, List<Documentacion> docsNoConformes) {
-        lblConfPrecinto.setText(bolsin.getNumeroPrecinto());
+        lblConfPrecinto.setText(String.valueOf(bolsin.getNroPrecinto()));
         lblConfCMOrigen.setText(bolsin.getCMOrigen().getNombre());
         if (lblConfOpcionElegida != null && opcion != null) {
             lblConfOpcionElegida.setText("Opción " + opcion.getNumero() + ": " + opcion.getTitulo());
         }
-        lblConfRemito.setText(remito.getNumero());
+        lblConfRemito.setText(String.valueOf(remito.getNumero()));
         lblConfEstadoRemito.setText("Nuevo Estado: " + opcion.getImpactoRemito());
         lblConfEstadoRemito.getStyleClass().removeAll("badge-recibido", "badge-parcial");
         if (opcion.esFaltaDocumentacion() || opcion.esNoCorrespondeDestino()) {
@@ -366,7 +367,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
             HBox itemBox = new HBox(10);
             itemBox.setAlignment(Pos.CENTER_LEFT);
 
-            Label lblTipo = new Label("#" + row.getId() + " [" + row.getTipo() + "]");
+            Label lblTipo = new Label("#" + row.getNumero() + " [" + row.getTipo() + "]");
             lblTipo.setStyle("-fx-font-weight: bold; -fx-text-fill: #475569;");
 
             Label lblAsunto = new Label(row.getAsunto());
@@ -589,7 +590,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
         // Chips informativos
         Usuario usrInicial = gestor.getSesionActual().getUsuario();
         String nombreEmpInicial = usrInicial.getEmpleado() != null ? " (" + usrInicial.getEmpleado().getNombre() + ")" : "";
-        this.lblUsuarioActivo = new Label("Usuario: " + usrInicial.getUsername() + nombreEmpInicial);
+        this.lblUsuarioActivo = new Label("Usuario: " + usrInicial.getNombre() + nombreEmpInicial);
         this.lblUsuarioActivo.getStyleClass().add("session-chip");
         this.lblUsuarioActivo.setMaxWidth(240);
         this.lblUsuarioActivo.setTooltip(new Tooltip(this.lblUsuarioActivo.getText()));
@@ -791,7 +792,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
         VBox.setVgrow(tblBolsines, Priority.ALWAYS);
 
         TableColumn<Bolsin, String> colPrecinto = new TableColumn<>("Nº de Precinto");
-        colPrecinto.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getNumeroPrecinto()));
+        colPrecinto.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().getNroPrecinto())));
         colPrecinto.setPrefWidth(120);
         colPrecinto.setStyle("-fx-font-weight: bold;");
 
@@ -806,7 +807,7 @@ public class PantallaRecepcionBolsin extends BorderPane {
 
         TableColumn<Bolsin, String> colRemito = new TableColumn<>("Nº Remito");
         colRemito.setCellValueFactory(data -> new SimpleStringProperty(
-                data.getValue().getRemito() != null ? data.getValue().getRemito().getNumero() : "S/R"));
+                !data.getValue().getRemitos().isEmpty() ? String.valueOf(data.getValue().getRemitos().get(0).getNumero()) : "S/R"));
         colRemito.setPrefWidth(135);
 
         TableColumn<Bolsin, String> colFecha = new TableColumn<>("Fecha de Envío");
@@ -959,8 +960,8 @@ public class PantallaRecepcionBolsin extends BorderPane {
         colCheck.setPrefWidth(90);
         colCheck.setEditable(true);
 
-        TableColumn<DocumentacionRow, Long> colId = new TableColumn<>("ID");
-        colId.setCellValueFactory(cellData -> new javafx.beans.property.SimpleObjectProperty<>(cellData.getValue().getId()));
+        TableColumn<DocumentacionRow, Integer> colId = new TableColumn<>("N°");
+        colId.setCellValueFactory(cellData -> new javafx.beans.property.SimpleObjectProperty<>(cellData.getValue().getNumero()));
         colId.setPrefWidth(70);
 
         TableColumn<DocumentacionRow, String> colTipoDoc = new TableColumn<>("Tipo de Documento");

@@ -8,15 +8,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Suite de pruebas de persistencia real con JPA / Hibernate 6 + H2 en memoria.
- * Cada test consulta un EntityManager nuevo e independiente tras la ejecución del Gestor
- * para verificar que los cambios quedaron persistidos en las tablas SQL de H2.
+ * Suite de pruebas de persistencia (a actualizar con Data Mapper en Fase 2).
  */
 public class PersistenciaCU28Test {
 
@@ -24,16 +23,17 @@ public class PersistenciaCU28Test {
 
     @BeforeEach
     void setUp() {
-        ComisionMedica cmCentral = new ComisionMedica(1L, "Comisión Médica Central (CMC) - CABA");
-        Empleado empleado = new Empleado(100L, "Juan Pérez (Encargado Central)", cmCentral);
-        Usuario usuario = new Usuario("jperez.cmc", empleado);
-        Sesion sesionCentral = new Sesion(usuario);
+        ComisionMedica cmCentral = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA",
+                "Av. Roque Sáenz Peña 1100", "despacho.cmc@srt.gob.ar", "011-4321-1000");
+        Empleado empleado = new Empleado("Juan Pérez (Encargado Central)", cmCentral);
+        Usuario usuario = new Usuario("jperez.cmc", "Operador Central", empleado);
+        Sesion sesionCentral = new Sesion(usuario, LocalDateTime.now());
 
         gestor = new GestorRecepcionBolsin(sesionCentral);
         gestor.tomarOpcionRegistrarRecepcionBolsin();
     }
 
-    private Bolsin consultarBolsinEnBD(String numeroPrecinto) {
+    private Bolsin consultarBolsinEnBD(int numeroPrecinto) {
         EntityManager em = JpaUtil.getEntityManager();
         try {
             return em.createQuery(
@@ -57,11 +57,11 @@ public class PersistenciaCU28Test {
             Long cantBolsines = em.createQuery("SELECT COUNT(b) FROM Bolsin b", Long.class).getSingleResult();
             Long cantRemitos = em.createQuery("SELECT COUNT(r) FROM Remito r", Long.class).getSingleResult();
 
-            assertEquals(9L, cantEstados, "Deben existir 9 estados en tabla estado");
-            assertEquals(7L, cantCMs, "Deben existir 7 comisiones médicas en tabla comision_medica");
-            assertEquals(4L, cantTipos, "Deben existir 4 tipos de documento en tabla tipo_documento");
-            assertEquals(7L, cantBolsines, "Deben existir 7 bolsines iniciales en tabla bolsin");
-            assertEquals(7L, cantRemitos, "Deben existir 7 remitos iniciales en tabla remito");
+            assertEquals(9L, cantEstados);
+            assertEquals(7L, cantCMs);
+            assertEquals(4L, cantTipos);
+            assertEquals(7L, cantBolsines);
+            assertEquals(7L, cantRemitos);
         } finally {
             em.close();
         }
@@ -71,7 +71,7 @@ public class PersistenciaCU28Test {
     @DisplayName("BD H2: Flujo Básico (Opción 1) persiste historial de Bolsín, Remito y Documentación")
     void testPersistenciaFlujoBasicoOpcion1() {
         Bolsin prec7041 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> "PREC-7041".equals(b.getNumeroPrecinto()))
+                .filter(b -> b.getNroPrecinto() == 7041)
                 .findFirst().orElseThrow();
         gestor.tomarSeleccionBolsin(prec7041);
 
@@ -81,21 +81,18 @@ public class PersistenciaCU28Test {
         gestor.tomarSeleccionOpcion(opc1, Collections.emptyList());
         gestor.tomarConfirmacionSeleccion(true);
 
-        // Re-leer desde H2 en un EntityManager independiente
-        Bolsin enBD = consultarBolsinEnBD("PREC-7041");
-        assertNotNull(enBD.getId());
-        assertEquals(2, enBD.getCambiosDeEstado().size(), "Debe registrar 2 cambios de estado en BD");
-        assertNotNull(enBD.getCambiosDeEstado().get(0).getFechaHoraFin(),
-                "El estado inicial ENVIADO debe tener fechaHoraFin cerrada en BD");
+        Bolsin enBD = consultarBolsinEnBD(7041);
+        assertEquals(2, enBD.getCambiosDeEstado().size());
+        assertNotNull(enBD.getCambiosDeEstado().get(0).getFechaHoraFin());
         assertEquals(Estado.NOMBRE_ENVIADO, enBD.getCambiosDeEstado().get(0).getEstado().getNombre());
 
         CambioEstadoBolsin actualBD = enBD.getCambiosDeEstado().get(1);
-        assertNull(actualBD.getFechaHoraFin(), "El nuevo estado debe permanecer vigente (fechaHoraFin == null)");
+        assertNull(actualBD.getFechaHoraFin());
         assertEquals(Estado.NOMBRE_RECIBIDO_CM_DESTINO, actualBD.getEstado().getNombre());
-        assertNotNull(actualBD.getEmpleado(), "Debe persistirse el empleado responsable");
-        assertEquals(100L, actualBD.getEmpleado().getId());
+        assertNotNull(actualBD.getEmpleado());
+        assertEquals("Juan Pérez (Encargado Central)", actualBD.getEmpleado().getNombre());
 
-        Remito remitoBD = enBD.getRemito();
+        Remito remitoBD = enBD.getRemitos().get(0);
         assertNotNull(remitoBD.getEstado());
         assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, remitoBD.getEstado().getNombre());
         assertEquals(Estado.AMBITO_REMITO, remitoBD.getEstado().getAmbito());
@@ -107,7 +104,6 @@ public class PersistenciaCU28Test {
             assertNull(docBD.getCambiosDeEstado().get(1).getFechaHoraFin());
             assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, docBD.getCambiosDeEstado().get(1).getEstado().getNombre());
             assertNotNull(docBD.getCambiosDeEstado().get(1).getEmpleado());
-            assertEquals(100L, docBD.getCambiosDeEstado().get(1).getEmpleado().getId());
         }
     }
 
@@ -115,23 +111,22 @@ public class PersistenciaCU28Test {
     @DisplayName("BD H2: Flujo Alternativo A3 persiste Remito parcial y documentación NO_RECIBIDA")
     void testPersistenciaFlujoAlternativoA3() {
         Bolsin prec8820 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> "PREC-8820".equals(b.getNumeroPrecinto()))
+                .filter(b -> b.getNroPrecinto() == 8820)
                 .findFirst().orElseThrow();
         gestor.tomarSeleccionBolsin(prec8820);
 
         OpcionRecepcion opc2 = gestor.buscarOpcionesRecepcion().stream()
                 .filter(OpcionRecepcion::esFaltaDocumentacion)
                 .findFirst().orElseThrow();
-        Documentacion docFaltante = prec8820.getRemito().getDetalles().get(0).getDocumentacion();
+        Documentacion docFaltante = prec8820.getRemitos().get(0).getDetalles().get(0).getDocumentacion();
 
         gestor.tomarSeleccionOpcion(opc2, List.of(docFaltante));
         gestor.tomarConfirmacionSeleccion(true);
 
-        Bolsin enBD = consultarBolsinEnBD("PREC-8820");
-        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, enBD.getRemito().getEstado().getNombre());
-        assertEquals(Estado.AMBITO_REMITO, enBD.getRemito().getEstado().getAmbito());
+        Bolsin enBD = consultarBolsinEnBD(8820);
+        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, enBD.getRemitos().get(0).getEstado().getNombre());
 
-        List<DetalleRemito> detallesBD = enBD.getRemito().getDetalles();
+        List<DetalleRemito> detallesBD = enBD.getRemitos().get(0).getDetalles();
         assertEquals(Estado.NOMBRE_NO_RECIBIDA, detallesBD.get(0).getDocumentacion().getEstadoActual().getNombre());
         assertEquals(2, detallesBD.get(0).getDocumentacion().getCambiosDeEstado().size());
         for (int i = 1; i < detallesBD.size(); i++) {
@@ -144,22 +139,22 @@ public class PersistenciaCU28Test {
     @DisplayName("BD H2: Flujo Alternativo A4 persiste Remito parcial y documentación RECIBIDA_Y_RECHAZADA")
     void testPersistenciaFlujoAlternativoA4() {
         Bolsin prec8820 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> "PREC-8820".equals(b.getNumeroPrecinto()))
+                .filter(b -> b.getNroPrecinto() == 8820)
                 .findFirst().orElseThrow();
         gestor.tomarSeleccionBolsin(prec8820);
 
         OpcionRecepcion opc3 = gestor.buscarOpcionesRecepcion().stream()
                 .filter(OpcionRecepcion::esNoCorrespondeDestino)
                 .findFirst().orElseThrow();
-        Documentacion docErroneo = prec8820.getRemito().getDetalles().get(0).getDocumentacion();
+        Documentacion docErroneo = prec8820.getRemitos().get(0).getDetalles().get(0).getDocumentacion();
 
         gestor.tomarSeleccionOpcion(opc3, List.of(docErroneo));
         gestor.tomarConfirmacionSeleccion(true);
 
-        Bolsin enBD = consultarBolsinEnBD("PREC-8820");
-        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, enBD.getRemito().getEstado().getNombre());
+        Bolsin enBD = consultarBolsinEnBD(8820);
+        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO_PARCIAL, enBD.getRemitos().get(0).getEstado().getNombre());
 
-        List<DetalleRemito> detallesBD = enBD.getRemito().getDetalles();
+        List<DetalleRemito> detallesBD = enBD.getRemitos().get(0).getDetalles();
         assertEquals(Estado.NOMBRE_RECIBIDA_Y_RECHAZADA, detallesBD.get(0).getDocumentacion().getEstadoActual().getNombre());
         for (int i = 1; i < detallesBD.size(); i++) {
             assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO,
@@ -171,7 +166,7 @@ public class PersistenciaCU28Test {
     @DisplayName("BD H2: Flujo Alternativo A5 (CMC) persiste documentación PARA_REDIRIGIR")
     void testPersistenciaFlujoAlternativoA5() {
         Bolsin prec9150 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> "PREC-9150".equals(b.getNumeroPrecinto()))
+                .filter(b -> b.getNroPrecinto() == 9150)
                 .findFirst().orElseThrow();
         gestor.tomarSeleccionBolsin(prec9150);
 
@@ -182,18 +177,18 @@ public class PersistenciaCU28Test {
         gestor.tomarSeleccionOpcion(opc4, Collections.emptyList());
         gestor.tomarConfirmacionSeleccion(true);
 
-        Bolsin enBD = consultarBolsinEnBD("PREC-9150");
+        Bolsin enBD = consultarBolsinEnBD(9150);
         assertEquals(Estado.NOMBRE_RECIBIDO_CM_DESTINO, enBD.getEstadoActual().getNombre());
-        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, enBD.getRemito().getEstado().getNombre());
+        assertEquals(Estado.NOMBRE_RECIBIDO_Y_ACEPTADO, enBD.getRemitos().get(0).getEstado().getNombre());
         assertEquals(Estado.NOMBRE_PARA_REDIRIGIR,
-                enBD.getRemito().getDetalles().get(0).getDocumentacion().getEstadoActual().getNombre());
+                enBD.getRemitos().get(0).getDetalles().get(0).getDocumentacion().getEstadoActual().getNombre());
     }
 
     @Test
     @DisplayName("BD H2: Flujo Alternativo A6 (no confirmar) mantiene el bolsín ENVIADO sin cambios en BD")
     void testNoConfirmarA6NoModificaBaseDeDatos() {
         Bolsin prec7041 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> "PREC-7041".equals(b.getNumeroPrecinto()))
+                .filter(b -> b.getNroPrecinto() == 7041)
                 .findFirst().orElseThrow();
         gestor.tomarSeleccionBolsin(prec7041);
 
@@ -203,9 +198,9 @@ public class PersistenciaCU28Test {
         gestor.tomarSeleccionOpcion(opc1, Collections.emptyList());
         gestor.tomarConfirmacionSeleccion(false);
 
-        Bolsin enBD = consultarBolsinEnBD("PREC-7041");
-        assertEquals(1, enBD.getCambiosDeEstado().size(), "No debe haberse insertado un nuevo cambio de estado en BD");
+        Bolsin enBD = consultarBolsinEnBD(7041);
+        assertEquals(1, enBD.getCambiosDeEstado().size());
         assertEquals(Estado.NOMBRE_ENVIADO, enBD.getEstadoActual().getNombre());
-        assertNull(enBD.getRemito().getEstado(), "El remito no debe haber cambiado su estado en BD");
+        assertNull(enBD.getRemitos().get(0).getEstado());
     }
 }

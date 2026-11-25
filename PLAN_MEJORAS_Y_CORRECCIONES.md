@@ -145,8 +145,8 @@
 
 ---
 
-### Fase 1 — Patrón Iterator Exacto + Dominio OO 100% Puro
-**Estado:** ⏳ **Pendiente** *(bloqueada hasta aprobar Gate Fase 0)*
+### Fase 1 — Patrón Iterator Exacto + Dominio OO 100% Puro (Opción B)
+**Estado:** ✅ **Cerrada** *(Gate Fase 1 aprobado: `mvn clean test "-Dtest=IteratorPatternTest,DominioPuroYContratosTest"` — 18/18 tests en verde, 29 fuentes main + 4 test compilados bajo JDK 21)*
 
 * **1.1 Patrón Iterator fiel al Diagrama de Secuencia (Correcciones #1, #2, #3 y #4):**
   * Eliminar `actual()` de `IIterador`, `IteradorBolsin`, `IteradorRemito` e `IteradorDetalleRemito`; dejar **`elementoActual()`** como único método oficial del contrato.
@@ -310,7 +310,7 @@
 | Fase | Nombre | Estado | Gate de Salida (Verificación Íntegra) |
 | :---: | :--- | :---: | :--- |
 | **0** | Congelamiento del Contrato de Secuencia y Decisiones | ✅ Cerrada | `.md` 100% alineados con el DS real + todos los puntos abiertos resueltos |
-| **1** | Patrón Iterator Exacto + Dominio OO Puro (Opción B) | ⏳ Pendiente | Test pureza Dominio (0 JPA/JavaFX, 0 `id` artificiales, solapamiento E1+E2) + Test contratos estrictos por reflexión (`Object[]` en iteradores, `int` limpios) + filtro real sin look-ahead + tests multi-remito en Dominio |
+| **1** | Patrón Iterator Exacto + Dominio OO Puro (Opción B) | ✅ Cerrada | Test pureza Dominio (0 JPA/JavaFX, 0 `id` artificiales, solapamiento E1+E2) + Test contratos estrictos por reflexión (`Object[]` en iteradores, `int` limpios) + filtro real sin look-ahead + tests multi-remito en Dominio |
 | **2** | Data Mapper + H2 en disco + script seeder separado | ⏳ Pendiente | Test durabilidad en disco (bolsín 2+ remitos) tras cierre/reapertura EMF + Test no-destrucción al iniciar/`finCU()` + Test `MapeadorPersistenciaCU28` y `ReiniciarEscenarioBD` |
 | **3** | CU 29 (`<<includes>>`) con Gestor Propio (Solo Primitivos) | ⏳ Pendiente | Tests `GestorNotificarRecepcionBolsin` post-commit + tests integración multi-remito (Opción 1, A3, A4, A5) + contratos hacia Pantalla solo primitivos / `String` |
 | **4** | Desacople Estructural del Boundary (BCE + Multi-Remito) | ⏳ Pendiente | `ArquitecturaBCETest` bloqueante sobre `com.ppai.boundary.**` (0 imports fuera de `GestorRecepcionBolsin`/control/`java.*`/`javafx.*`; 0 fechas/`LocalDateTime`/literales de estados; frontera 100% primitivos/`String`) + UI multi-remito funcional en Pasos 1–4 |

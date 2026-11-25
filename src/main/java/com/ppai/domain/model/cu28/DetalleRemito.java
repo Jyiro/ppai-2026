@@ -1,51 +1,32 @@
 package com.ppai.domain.model.cu28;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-
 import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * Entidad DetalleRemito — CU 28: Registrar Recepción de Bolsín.
- * Asocia una Documentación a un Remito.
+ * Asocia una Documentación a un Remito y su área destino en CMC (Dominio OO puro).
  */
-@Entity
-@Table(name = "detalle_remito")
 public class DetalleRemito {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private final Documentacion documentacion;
+    private final String areaCMCDestino;
 
-    @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
-    @JoinColumn(name = "documentacion_id", nullable = false)
-    private Documentacion documentacion;
-
-    protected DetalleRemito() {
-    }
-
-    public DetalleRemito(Documentacion documentacion) {
+    public DetalleRemito(Documentacion documentacion, String areaCMCDestino) {
         this.documentacion = documentacion;
+        this.areaCMCDestino = areaCMCDestino;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    /** DS-CU28 loop sec. 4: Retorna la documentación asociada a este detalle. */
     public Documentacion getDocumentacion() {
         return documentacion;
     }
 
+    public String getAreaCMCDestino() {
+        return areaCMCDestino;
+    }
+
     /**
-     * DS-CU28 loop sec. 4: Retorna el asunto y tipo de documentación (método nuevo de diseño).
+     * DS-CU28 loop sec. 4: Retorna el asunto y tipo de documentación.
      *
      * @return Arreglo con [asunto, tipoDocumento].
      */
@@ -60,24 +41,65 @@ public class DetalleRemito {
     }
 
     /** DS-CU28 loop sec. 8: Delega la aceptación en Documentacion#aceptar(). */
-    public void aceptar(Estado estadoRecibidoYAceptado, LocalDateTime fechaHoraActual) {
-        aceptar(estadoRecibidoYAceptado, fechaHoraActual, null);
-    }
-
-    /** DS-CU28 loop sec. 8: Delega la aceptación en Documentacion#aceptar() registrando empleado. */
-    public void aceptar(Estado estadoRecibidoYAceptado, LocalDateTime fechaHoraActual, Empleado empleado) {
+    public void aceptar(LocalDateTime fechaHoraActual, Estado estadoRecibidaYAceptada, Empleado empleado) {
         if (documentacion != null) {
-            documentacion.aceptar(estadoRecibidoYAceptado, fechaHoraActual, empleado);
+            documentacion.aceptar(fechaHoraActual, estadoRecibidaYAceptada, empleado);
         }
     }
 
-    public Documentacion getDocumentacionAsociada() {
-        return documentacion;
+    /**
+     * Flujo alternativo A3: Marca como No recibida si su número figura entre las no conformes,
+     * o Aceptada en caso contrario.
+     *
+     * @return true si este detalle fue marcado como faltante (No recibida).
+     */
+    public boolean registrarFaltaDocumentacion(LocalDateTime fechaHoraActual,
+                                                Estado estadoAceptada,
+                                                Estado estadoNoRecibida,
+                                                Set<Integer> numerosDocsNoConformes,
+                                                Empleado empleado) {
+        if (documentacion == null) {
+            return false;
+        }
+        if (numerosDocsNoConformes != null && numerosDocsNoConformes.contains(documentacion.getNumero())) {
+            documentacion.marcarNoRecibida(fechaHoraActual, estadoNoRecibida, empleado);
+            return true;
+        }
+        documentacion.aceptar(fechaHoraActual, estadoAceptada, empleado);
+        return false;
+    }
+
+    /**
+     * Flujo alternativo A4: Marca como Recibida y rechazada si su número figura entre las erróneas,
+     * o Aceptada en caso contrario.
+     *
+     * @return true si este detalle fue marcado como destino erróneo (Recibida y rechazada).
+     */
+    public boolean registrarDestinoErroneo(LocalDateTime fechaHoraActual,
+                                           Estado estadoAceptada,
+                                           Estado estadoRechazada,
+                                           Set<Integer> numerosDocsNoConformes,
+                                           Empleado empleado) {
+        if (documentacion == null) {
+            return false;
+        }
+        if (numerosDocsNoConformes != null && numerosDocsNoConformes.contains(documentacion.getNumero())) {
+            documentacion.marcarRecibidaRechazada(fechaHoraActual, estadoRechazada, empleado);
+            return true;
+        }
+        documentacion.aceptar(fechaHoraActual, estadoAceptada, empleado);
+        return false;
+    }
+
+    /** Flujo alternativo A5: Marca la documentación como Para redirigir. */
+    public void marcarParaRedirigir(LocalDateTime fechaHoraActual, Estado estadoParaRedirigir, Empleado empleado) {
+        if (documentacion != null) {
+            documentacion.marcarParaRedirigir(fechaHoraActual, estadoParaRedirigir, empleado);
+        }
     }
 
     @Override
     public String toString() {
-        return "DetalleRemito{documentacion=" + documentacion + "}";
+        return "DetalleRemito{documentacion=" + documentacion + ", areaCMCDestino='" + areaCMCDestino + "'}";
     }
 }
-

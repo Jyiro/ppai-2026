@@ -10,19 +10,14 @@ import com.ppai.domain.model.cu28.Remito;
  */
 public class IteradorRemito implements IIterador {
 
-    private Remito[] lista;
+    private final Remito[] lista;
     private int posicionActual;
-
-    public IteradorRemito(Remito[] lista) {
-        this.lista = (lista != null) ? lista : new Remito[0];
-        this.posicionActual = 0;
-    }
 
     public IteradorRemito(Object[] elementos) {
         if (elementos == null) {
             this.lista = new Remito[0];
-        } else if (elementos instanceof Remito[]) {
-            this.lista = (Remito[]) elementos;
+        } else if (elementos instanceof Remito[] remitos) {
+            this.lista = remitos.clone();
         } else {
             this.lista = new Remito[elementos.length];
             for (int i = 0; i < elementos.length; i++) {
@@ -39,7 +34,7 @@ public class IteradorRemito implements IIterador {
 
     @Override
     public void siguiente() {
-        if (!haFinalizado()) {
+        if (posicionActual < lista.length) {
             this.posicionActual++;
         }
     }
@@ -55,19 +50,5 @@ public class IteradorRemito implements IIterador {
             return null;
         }
         return lista[posicionActual];
-    }
-
-    @Override
-    public Object actual() {
-        return elementoActual();
-    }
-
-    // Getters auxiliares para inspección y testing
-    public Remito[] getLista() {
-        return lista;
-    }
-
-    public int getPosicionActual() {
-        return posicionActual;
     }
 }

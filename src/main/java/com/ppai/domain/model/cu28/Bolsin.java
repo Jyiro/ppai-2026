@@ -3,83 +3,52 @@ package com.ppai.domain.model.cu28;
 import com.ppai.iterator.IAgregado;
 import com.ppai.iterator.IIterador;
 import com.ppai.iterator.IteradorRemito;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderColumn;
-import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Entidad Bolsin — CU 28: Registrar Recepción de Bolsín.
- * Entidad central del caso de uso.
- * Implementa IAgregado para delegar el recorrido de remitos a IteradorRemito.
+ * Entidad Bolsin — CU 28: Registrar Recepción de Bolsín (Dominio OO puro).
+ * Implementa IAgregado para delegar el recorrido de sus remitos a IteradorRemito.
  *
  * NOTA DE DISEÑO: No utiliza ni extiende java.util.Iterable.
  */
-@Entity
-@Table(name = "bolsin")
 public class Bolsin implements IAgregado {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private final int numeroBolsin;
+    private final int numeroPrecinto;
+    private final LocalDateTime fecha;
+    private final double peso;
+    private final ComisionMedica cmOrigen;
+    private final ComisionMedica cmDestino;
+    private final List<Remito> remitos;
+    private final List<CambioEstadoBolsin> cambiosDeEstado;
 
-    @Column(name = "numero_precinto", nullable = false, unique = true)
-    private String numeroPrecinto;
-
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "cm_origen_id", nullable = false)
-    private ComisionMedica cmOrigen;
-
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "cm_destino_id", nullable = false)
-    private ComisionMedica cmDestino;
-
-    @Transient
-    private Remito remito;
-
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
-    @JoinColumn(name = "bolsin_id")
-    @OrderColumn(name = "orden")
-    private List<Remito> remitos = new ArrayList<>();
-
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
-    @JoinColumn(name = "bolsin_id")
-    @OrderColumn(name = "orden")
-    private List<CambioEstadoBolsin> cambiosDeEstado = new ArrayList<>();
-
-    protected Bolsin() {
-    }
-
-    public Bolsin(String numeroPrecinto, ComisionMedica cmOrigen, ComisionMedica cmDestino,
-                  Remito remito, Estado estadoInicial, LocalDateTime fechaHoraInicio) {
+    public Bolsin(int numeroBolsin,
+                  int numeroPrecinto,
+                  LocalDateTime fecha,
+                  double peso,
+                  ComisionMedica cmOrigen,
+                  ComisionMedica cmDestino,
+                  List<Remito> remitos,
+                  Estado estadoInicial,
+                  LocalDateTime fechaHoraInicio,
+                  Empleado empleadoInicial) {
+        this.numeroBolsin = numeroBolsin;
         this.numeroPrecinto = numeroPrecinto;
+        this.fecha = fecha;
+        this.peso = peso;
         this.cmOrigen = cmOrigen;
         this.cmDestino = cmDestino;
-        this.remito = remito;
-        this.remitos = new ArrayList<>();
-        if (remito != null) {
-            this.remitos.add(remito);
-        }
+        this.remitos = (remitos != null) ? new ArrayList<>(remitos) : new ArrayList<>();
         this.cambiosDeEstado = new ArrayList<>();
-        this.cambiosDeEstado.add(new CambioEstadoBolsin(estadoInicial, fechaHoraInicio));
-    }
-
-    public Long getId() {
-        return id;
+        if (estadoInicial != null) {
+            this.cambiosDeEstado.add(new CambioEstadoBolsin(fechaHoraInicio, estadoInicial, empleadoInicial));
+        }
     }
 
     /** DS-CU28 loop sec. 2: Verifica que el estado actual sea ENVIADO. */
@@ -88,161 +57,136 @@ public class Bolsin implements IAgregado {
         return actual != null && actual.sosEnviado();
     }
 
-    /** DS-CU28 loop sec. 2: Verifica que la CM destino coincida y el estado actual sea ENVIADO. */
-    public boolean sosEnviado(ComisionMedica cmEmpleado) {
-        if (!esTuCMDestino(cmEmpleado)) {
-            return false;
-        }
-        return sosEnviado();
-    }
-
-    /** DS-CU28 loop sec. 2: Verifica que la CM destino coincida por nombre y el estado sea ENVIADO. */
-    public boolean sosEnviado(String cmUsuario) {
-        if (!esTuCMDestino(cmUsuario)) {
-            return false;
-        }
-        return sosEnviado();
-    }
-
-    /** DS-CU28 loop sec. 2: Verifica si la CM destino coincide con la pasada por parámetro. */
-    public boolean esTuCMDestino(ComisionMedica cmEmpleado) {
-        return cmDestino != null && cmDestino.esTuCMDestino(cmEmpleado);
-    }
-
-    /** DS-CU28 loop sec. 2: Verifica si la CM destino coincide con el nombre de CM del usuario. */
+    /** DS-CU28 loop sec. 2: Verifica coincidencia exacta entre cmDestino y cmUsuario. */
     public boolean esTuCMDestino(String cmUsuario) {
         return cmDestino != null && cmDestino.esTuCMDestino(cmUsuario);
     }
 
-    /** DS-CU28 loop sec. 3: Retorna el número de precinto como String. */
-    public String getNumeroPrecinto() {
-        return numeroPrecinto;
-    }
-
-    /**
-     * DS-CU28 loop sec. 2: Retorna el número de precinto como entero según especificación DSI.
-     * Extrae los dígitos numéricos de la cadena de precinto (e.g. "PREC-7041" -> 7041).
-     */
-    public int getNroPrecinto() {
-        if (numeroPrecinto == null) {
-            return 0;
-        }
-        String digits = numeroPrecinto.replaceAll("\\D+", "");
-        if (!digits.isEmpty()) {
-            try {
-                return Integer.parseInt(digits);
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return 0;
-    }
-
-    /** DS-CU28 loop sec. 3: Retorna la CM de origen. */
-    public ComisionMedica getCMOrigen() {
-        return cmOrigen;
-    }
-
-    /**
-     * DS-CU28 loop sec. 2: Retorna el nombre de la CM de origen (método nuevo de diseño).
-     * Evita el acoplamiento directo entre el Gestor y ComisionMedica.
-     */
+    /** DS-CU28 loop sec. 2: Retorna el nombre de la CM de origen. */
     public String getNombreCMOrigen() {
         return (cmOrigen != null) ? cmOrigen.getNombre() : "";
     }
 
-    @Override
-    public IIterador crearIterador(Object[] elementos) {
-        Remito[] array;
-        if (elementos instanceof Remito[]) {
-            array = (Remito[]) elementos;
-        } else if (elementos != null) {
-            array = new Remito[elementos.length];
-            for (int i = 0; i < elementos.length; i++) {
-                array[i] = (Remito) elementos[i];
-            }
-        } else {
-            array = this.remitos.toArray(new Remito[0]);
-        }
-        return new IteradorRemito(array);
+    /** DS-CU28 loop sec. 2: Retorna el número de precinto como entero. */
+    public int getNroPrecinto() {
+        return numeroPrecinto;
     }
 
-    public IIterador crearIterador(Remito[] elementos) {
-        return new IteradorRemito(elementos != null ? elementos : this.remitos.toArray(new Remito[0]));
+    public int getNumeroBolsin() {
+        return numeroBolsin;
+    }
+
+    public LocalDateTime getFecha() {
+        return fecha;
+    }
+
+    public double getPeso() {
+        return peso;
+    }
+
+    public ComisionMedica getCMOrigen() {
+        return cmOrigen;
+    }
+
+    public ComisionMedica getCmDestino() {
+        return cmDestino;
+    }
+
+    @Override
+    public IIterador crearIterador(Object[] elementos) {
+        Object[] fuente = (elementos != null) ? elementos : this.remitos.toArray(new Remito[0]);
+        return new IteradorRemito(fuente);
     }
 
     /**
-     * DS-CU28 paso 14: Retorna el remito asociado recorriendo la colección con IteradorRemito.
+     * DS-CU28 paso 14 / loop sec. 4: Recorre todos los remitos con IteradorRemito
+     * y retorna matriz [numeroRemito, asunto, tipoDocumentacion] con la totalidad
+     * de remitos y sus documentaciones.
      */
-    public Remito obtenerInformacionRemito() {
+    public String[][] obtenerInformacionRemito() {
         Remito[] array = this.remitos.toArray(new Remito[0]);
         IIterador iterador = crearIterador(array);
         iterador.primero();
-        Remito primerRemito = null;
+        List<String[]> filas = new ArrayList<>();
         while (!iterador.haFinalizado()) {
-            Remito r = (Remito) iterador.actual();
-            if (primerRemito == null) {
-                primerRemito = r;
-            }
+            Remito r = (Remito) iterador.elementoActual();
             if (r != null) {
-                r.getNumero();
-                r.buscarDocumentacion();
+                String nroRemito = String.valueOf(r.getNumero());
+                String[][] docs = r.buscarDocumentacion();
+                for (String[] doc : docs) {
+                    String asunto = (doc != null && doc.length > 0) ? doc[0] : "";
+                    String tipoDoc = (doc != null && doc.length > 1) ? doc[1] : "";
+                    filas.add(new String[]{ nroRemito, asunto, tipoDoc });
+                }
             }
             iterador.siguiente();
         }
-        return primerRemito != null ? primerRemito : this.remito;
+        return filas.toArray(new String[0][]);
     }
 
-    /** DS-CU28 pasos 26-30 y loop sec. 8: Cierra estado actual, crea nuevo estado y orquesta aceptación de remito. */
-    public void marcarRecibido(Estado estadoRecibidoCMDestino,
-                               Estado estadoDocRecibidaAceptada,
-                               LocalDateTime fechaHoraActual) {
-        marcarRecibido(estadoRecibidoCMDestino, estadoDocRecibidaAceptada, fechaHoraActual, null);
-    }
-
-    public void marcarRecibido(Estado estadoRecibidoCMDestino,
-                               Estado estadoDocRecibidaAceptada,
-                               LocalDateTime fechaHoraActual,
+    /** DS-CU28 pasos 25-30: Cierra el estado vigente del bolsín y crea el nuevo cambio de estado. */
+    public void marcarRecibido(LocalDateTime fechaHoraActual,
+                               Estado estadoRecibidoCMDestino,
                                Empleado empleado) {
         CambioEstadoBolsin actual = obtenerCambioActual();
         if (actual != null) {
             actual.setFechaHoraFin(fechaHoraActual);
         }
-
-        crearNuevoCambioDeEstado(estadoRecibidoCMDestino, fechaHoraActual, empleado);
-
-        if (estadoDocRecibidaAceptada != null) {
-            actualizarRemitoYDocumentacion(estadoDocRecibidaAceptada, fechaHoraActual, empleado);
-        }
-    }
-
-    /** Marca el bolsín como recibido registrando fecha y empleado actuante. */
-    public void marcarRecibido(Estado estadoRecibidoCMDestino,
-                               LocalDateTime fechaHoraActual,
-                               Empleado empleado) {
-        CambioEstadoBolsin actual = obtenerCambioActual();
-        if (actual != null) {
-            actual.setFechaHoraFin(fechaHoraActual);
-        }
-        crearNuevoCambioDeEstado(estadoRecibidoCMDestino, fechaHoraActual, empleado);
-    }
-
-    /** DS-CU28 sec. 8: Actualiza todos los remitos asociados y sus documentaciones (orquestador). */
-    public void actualizarRemitoYDocumentacion(Estado estadoRecibidaYAceptada,
-                                              LocalDateTime fechaHoraActual,
-                                              Empleado empleado) {
-        for (Remito r : remitos) {
-            r.aceptar(estadoRecibidaYAceptada, fechaHoraActual, empleado);
-        }
+        crearNuevoCambioDeEstado(fechaHoraActual, estadoRecibidoCMDestino, empleado);
     }
 
     /** DS-CU28 pasos 29-30: Crea y agrega el nuevo CambioEstadoBolsin. */
-    public void crearNuevoCambioDeEstado(Estado estado, LocalDateTime fechaHoraInicio) {
-        crearNuevoCambioDeEstado(estado, fechaHoraInicio, null);
+    public void crearNuevoCambioDeEstado(LocalDateTime fechaHoraInicio, Estado estado, Empleado empleado) {
+        CambioEstadoBolsin nuevo = new CambioEstadoBolsin(fechaHoraInicio, estado, empleado);
+        this.cambiosDeEstado.add(nuevo);
     }
 
-    public void crearNuevoCambioDeEstado(Estado estado, LocalDateTime fechaHoraInicio, Empleado empleado) {
-        CambioEstadoBolsin nuevo = new CambioEstadoBolsin(estado, fechaHoraInicio, empleado);
-        this.cambiosDeEstado.add(nuevo);
+    /** DS-CU28 sec. 8 (Opción 1): Actualiza todos los remitos asociados y sus documentaciones. */
+    public void actualizarRemitoYDocumentacion(LocalDateTime fechaHoraActual,
+                                               Estado estadoRemitoAceptado,
+                                               Estado estadoDocAceptada,
+                                               Empleado empleado) {
+        for (Remito r : remitos) {
+            r.aceptar(fechaHoraActual, estadoRemitoAceptado, estadoDocAceptada, empleado);
+        }
+    }
+
+    /** Flujo alternativo A3 multi-remito: delega en todos los remitos la marcación de faltantes. */
+    public void registrarFaltaDocumentacion(LocalDateTime fechaHoraActual,
+                                             Estado estadoRemitoAceptado,
+                                             Estado estadoRemitoParcial,
+                                             Estado estadoDocAceptada,
+                                             Estado estadoDocNoRecibida,
+                                             Set<Integer> numerosDocsNoConformes,
+                                             Empleado empleado) {
+        for (Remito r : remitos) {
+            r.registrarFaltaDocumentacion(fechaHoraActual, estadoRemitoAceptado, estadoRemitoParcial,
+                    estadoDocAceptada, estadoDocNoRecibida, numerosDocsNoConformes, empleado);
+        }
+    }
+
+    /** Flujo alternativo A4 multi-remito: delega en todos los remitos la marcación de destino erróneo. */
+    public void registrarDestinoErroneo(LocalDateTime fechaHoraActual,
+                                        Estado estadoRemitoAceptado,
+                                        Estado estadoRemitoParcial,
+                                        Estado estadoDocAceptada,
+                                        Estado estadoDocRechazada,
+                                        Set<Integer> numerosDocsNoConformes,
+                                        Empleado empleado) {
+        for (Remito r : remitos) {
+            r.registrarDestinoErroneo(fechaHoraActual, estadoRemitoAceptado, estadoRemitoParcial,
+                    estadoDocAceptada, estadoDocRechazada, numerosDocsNoConformes, empleado);
+        }
+    }
+
+    /** Flujo alternativo A5 multi-remito: delega en todos los remitos la redirección interna (solo CMC). */
+    public void marcarParaRedirigir(LocalDateTime fechaHoraActual,
+                                    Estado estadoRemitoAceptado,
+                                    Estado estadoDocParaRedirigir,
+                                    Empleado empleado) {
+        for (Remito r : remitos) {
+            r.marcarParaRedirigir(fechaHoraActual, estadoRemitoAceptado, estadoDocParaRedirigir, empleado);
+        }
     }
 
     public CambioEstadoBolsin obtenerCambioActual() {
@@ -263,50 +207,38 @@ public class Bolsin implements IAgregado {
         if (!cambiosDeEstado.isEmpty()) {
             return cambiosDeEstado.get(0).getFechaHoraInicio();
         }
-        return LocalDateTime.now();
+        return this.fecha;
     }
 
     public void agregarRemito(Remito r) {
         if (r != null) {
             this.remitos.add(r);
-            if (this.remito == null) {
-                this.remito = r;
-            }
         }
     }
 
     public List<Remito> getRemitos() {
-        return remitos;
-    }
-
-    public Remito getRemito() {
-        return (!remitos.isEmpty()) ? remitos.get(0) : this.remito;
-    }
-
-    public ComisionMedica getCmDestino() {
-        return cmDestino;
+        return Collections.unmodifiableList(remitos);
     }
 
     public List<CambioEstadoBolsin> getCambiosDeEstado() {
-        return cambiosDeEstado;
+        return Collections.unmodifiableList(cambiosDeEstado);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Bolsin that)) return false;
-        return Objects.equals(numeroPrecinto, that.numeroPrecinto);
+        return numeroBolsin == that.numeroBolsin;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numeroPrecinto);
+        return Objects.hash(numeroBolsin);
     }
 
     @Override
     public String toString() {
-        return "Bolsin{numeroPrecinto='" + numeroPrecinto
-                + "', cmOrigen=" + cmOrigen + ", cmDestino=" + cmDestino + "}";
+        return "Bolsin{numeroBolsin=" + numeroBolsin + ", numeroPrecinto=" + numeroPrecinto
+                + ", cmOrigen=" + cmOrigen + ", cmDestino=" + cmDestino + "}";
     }
 }
-

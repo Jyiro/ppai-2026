@@ -1,60 +1,23 @@
 package com.ppai.domain.model.cu28;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-
 import java.time.LocalDateTime;
 
 /**
  * Entidad CambioEstadoBolsin — CU 28: Registrar Recepción de Bolsín.
- * Registra el historial de estados de un Bolsín.
- * (Punto de extensión: Patrón State en domain/state/cu28/)
+ * Registra el historial de estados de un Bolsín (Dominio OO puro).
  */
-@Entity
-@Table(name = "cambio_estado_bolsin")
 public class CambioEstadoBolsin {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "estado_id", nullable = false)
-    private Estado estado;
-
-    @Column(name = "fecha_hora_inicio", nullable = false)
-    private LocalDateTime fechaHoraInicio;
-
-    @Column(name = "fecha_hora_fin")
+    private final LocalDateTime fechaHoraInicio;
     private LocalDateTime fechaHoraFin;
+    private final Estado estado;
+    private final Empleado empleado;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "empleado_id")
-    private Empleado empleado;
-
-    protected CambioEstadoBolsin() {
-    }
-
-    public CambioEstadoBolsin(Estado estado, LocalDateTime fechaHoraInicio) {
-        this(estado, fechaHoraInicio, null);
-    }
-
-    public CambioEstadoBolsin(Estado estado, LocalDateTime fechaHoraInicio, Empleado empleado) {
-        this.estado = estado;
+    public CambioEstadoBolsin(LocalDateTime fechaHoraInicio, Estado estado, Empleado empleado) {
         this.fechaHoraInicio = fechaHoraInicio;
         this.fechaHoraFin = null;
+        this.estado = estado;
         this.empleado = empleado;
-    }
-
-    public Long getId() {
-        return id;
     }
 
     /** DS-CU28 paso 27 / loop sec. 2: Verifica si este cambio sigue vigente. */
@@ -64,7 +27,7 @@ public class CambioEstadoBolsin {
 
     /** DS-CU28 loop sec. 2: Delega en Estado#esEnviado(). */
     public boolean sosEnviado() {
-        return estado.esEnviado();
+        return estado != null && estado.esEnviado();
     }
 
     /** DS-CU28 paso 28: Cierra el estado actual registrando la fecha/hora de fin. */
@@ -94,4 +57,3 @@ public class CambioEstadoBolsin {
                 + ", fin=" + fechaHoraFin + ", empleado=" + (empleado != null ? empleado.getNombre() : "N/A") + "}";
     }
 }
-

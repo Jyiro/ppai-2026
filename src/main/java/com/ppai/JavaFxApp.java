@@ -11,6 +11,8 @@ import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
+import java.time.LocalDateTime;
+
 /**
  * Aplicación de Escritorio JavaFX — PPAI 2026 (Diseño de Sistemas de Información).
  * Inicializa el contexto de objetos, el Gestor de CU y la Pantalla Boundary.
@@ -25,12 +27,13 @@ public class JavaFxApp extends Application {
         System.out.println("╚══════════════════════════════════════════════════════════╝");
 
         // 1. Contexto de Sesión inicial (Usuario logueado con su Empleado y Comisión Médica)
-        ComisionMedica cmDestino = new ComisionMedica(1L, "Comisión Médica Central (CMC) - CABA");
-        Empleado empleado = new Empleado(100L, "Juan Pérez (Encargado Central)", cmDestino);
-        Usuario usuario = new Usuario("jperez.cmc", empleado);
-        Sesion sesionActual = new Sesion(usuario);
+        ComisionMedica cmDestino = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA",
+                "Av. Roque Sáenz Peña 1100", "despacho.cmc@srt.gob.ar", "011-4321-1000");
+        Empleado empleado = new Empleado("Juan Pérez (Encargado Central)", cmDestino);
+        Usuario usuario = new Usuario("jperez.cmc", "Operador Central", empleado);
+        Sesion sesionActual = new Sesion(usuario, LocalDateTime.now());
 
-        System.out.println("[APP] Sesión iniciada como: " + usuario.getUsername()
+        System.out.println("[APP] Sesión iniciada como: " + usuario.getNombre()
                 + " | CM: " + empleado.getCM().getNombre());
 
         // 2. Instanciación pura orientada a objetos de Gestor (Control) y Pantalla (Boundary)

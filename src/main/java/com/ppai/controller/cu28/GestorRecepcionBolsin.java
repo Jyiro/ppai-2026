@@ -10,9 +10,10 @@ import com.ppai.repository.cu28.IRepositorioCU28;
 import com.ppai.repository.cu28.RepositorioJpaCU28;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -113,33 +114,19 @@ public class GestorRecepcionBolsin implements IAgregado {
      */
     public void buscarUsuario() {
         Usuario usuarioActual = sesionActual.getUsuario();
-        this.empleadoActual = usuarioActual.getEmpleado();
-        this.comisionMedicaEmpleado = usuarioActual.getCMEmpleado();
-        System.out.println("[GESTOR] Usuario: " + usuarioActual.getUsername()
+        this.comisionMedicaEmpleado = sesionActual.getCMEmpleado();
+        this.empleadoActual = sesionActual.getEmpleadoLogueado();
+        System.out.println("[GESTOR] Usuario: " + usuarioActual.getNombre()
                 + " | Empleado: " + empleadoActual.getNombre()
                 + " | CM: " + comisionMedicaEmpleado.getNombre());
     }
 
     @Override
     public IIterador crearIterador(Object[] elementos) {
-        Bolsin[] array;
-        if (elementos instanceof Bolsin[]) {
-            array = (Bolsin[]) elementos;
-        } else if (elementos != null) {
-            array = new Bolsin[elementos.length];
-            for (int i = 0; i < elementos.length; i++) {
-                array[i] = (Bolsin) elementos[i];
-            }
-        } else {
-            array = this.todosBolsines.toArray(new Bolsin[0]);
-        }
-        Object[] filtros = new Object[]{ this.comisionMedicaEmpleado };
-        return new IteradorBolsin(array, filtros);
-    }
-
-    public IIterador crearIterador(Bolsin[] elementos) {
-        Object[] filtros = new Object[]{ this.comisionMedicaEmpleado };
-        return new IteradorBolsin(elementos != null ? elementos : this.todosBolsines.toArray(new Bolsin[0]), filtros);
+        Object[] fuente = (elementos != null) ? elementos : this.todosBolsines.toArray(new Bolsin[0]);
+        String nombreCM = (this.comisionMedicaEmpleado != null) ? this.comisionMedicaEmpleado.getNombre() : "";
+        Object[] filtros = new Object[]{ nombreCM };
+        return new IteradorBolsin(fuente, filtros);
     }
 
     /**
@@ -153,7 +140,7 @@ public class GestorRecepcionBolsin implements IAgregado {
         IIterador itBol = crearIterador(elementos);
         itBol.primero();
         while (!itBol.haFinalizado()) {
-            Bolsin bolsin = (Bolsin) itBol.actual();
+            Bolsin bolsin = (Bolsin) itBol.elementoActual();
             if (bolsin != null) {
                 bolsin.getNombreCMOrigen();
                 bolsin.getNroPrecinto();
@@ -171,9 +158,9 @@ public class GestorRecepcionBolsin implements IAgregado {
         List<Bolsin> filtrados = new ArrayList<>(bolsinesEnviados);
 
         if (filtroPrecinto != null && !filtroPrecinto.trim().isEmpty()) {
-            String f = filtroPrecinto.trim().toLowerCase();
+            String f = filtroPrecinto.trim();
             filtrados = filtrados.stream()
-                    .filter(b -> b.getNumeroPrecinto().toLowerCase().contains(f))
+                    .filter(b -> String.valueOf(b.getNroPrecinto()).contains(f))
                     .collect(Collectors.toList());
 
             if (filtrados.isEmpty()) {
@@ -187,7 +174,7 @@ public class GestorRecepcionBolsin implements IAgregado {
 
         if (filtroCMOrigen != null) {
             filtrados = filtrados.stream()
-                    .filter(b -> b.getCMOrigen().getId().equals(filtroCMOrigen.getId()))
+                    .filter(b -> b.getCMOrigen() != null && b.getCMOrigen().getCodigo() == filtroCMOrigen.getCodigo())
                     .collect(Collectors.toList());
 
             if (filtrados.isEmpty() && pantalla != null) {
@@ -209,7 +196,7 @@ public class GestorRecepcionBolsin implements IAgregado {
         }
 
         this.bolsinSeleccionado = bolsin;
-        System.out.println("[GESTOR] Bolsín seleccionado: " + bolsinSeleccionado.getNumeroPrecinto());
+        System.out.println("[GESTOR] Bolsín seleccionado: " + bolsinSeleccionado.getNroPrecinto());
         obtenerInformacionRemito();
     }
 
@@ -218,8 +205,9 @@ public class GestorRecepcionBolsin implements IAgregado {
      */
     public void tomarSeleccionOpcion(String precinto) {
         Bolsin encontrado = null;
+        String buscado = (precinto != null) ? precinto.trim() : "";
         for (Bolsin b : bolsinesEnviados) {
-            if (b.getNumeroPrecinto().equalsIgnoreCase(precinto)) {
+            if (String.valueOf(b.getNroPrecinto()).equals(buscado)) {
                 encontrado = b;
                 break;
             }
@@ -237,7 +225,10 @@ public class GestorRecepcionBolsin implements IAgregado {
     public void obtenerInformacionRemito() {
         if (bolsinSeleccionado == null) return;
 
-        this.remitoSeleccionado = bolsinSeleccionado.obtenerInformacionRemito();
+        bolsinSeleccionado.obtenerInformacionRemito();
+        this.remitoSeleccionado = !bolsinSeleccionado.getRemitos().isEmpty()
+                ? bolsinSeleccionado.getRemitos().get(0)
+                : null;
         if (remitoSeleccionado == null) {
             if (pantalla != null) {
                 pantalla.mostrarAlerta("Sin Remito", "El bolsín seleccionado no tiene remito asociado.");
@@ -439,7 +430,7 @@ public class GestorRecepcionBolsin implements IAgregado {
         }
 
         // 1. Actualizar Bolsín -> Siempre "Recibido en CM destino" (+ fecha/hora + empleado)
-        bolsinSeleccionado.marcarRecibido(estadoRecibidoCMDestino, fechaHoraActual, empleadoActual);
+        bolsinSeleccionado.marcarRecibido(fechaHoraActual, estadoRecibidoCMDestino, empleadoActual);
     }
 
     /**
@@ -452,61 +443,41 @@ public class GestorRecepcionBolsin implements IAgregado {
         }
         this.bolsinSeleccionado = repositorio.actualizarBolsin(this.bolsinSeleccionado, this.empleadoActual);
         if (this.bolsinSeleccionado != null) {
-            this.remitoSeleccionado = this.bolsinSeleccionado.getRemito();
+            this.remitoSeleccionado = !this.bolsinSeleccionado.getRemitos().isEmpty()
+                    ? this.bolsinSeleccionado.getRemitos().get(0)
+                    : null;
         }
     }
 
     /**
      * DS-CU28 pasos 39-40 y loop sec. 8: Delega la actualización de remitos y documentaciones.
-     * En el flujo básico (Opción 1), delega en bolsinSeleccionado.actualizarRemitoYDocumentacion(...)
-     * conforme a la especificación estricta de message.md.
      */
     public void actualizarRemitoYDocumentacion() {
         if (bolsinSeleccionado == null) {
             return;
         }
 
+        Set<Integer> numerosNoConformes = new HashSet<>();
+        for (Documentacion d : documentacionesNoConformes) {
+            if (d != null) {
+                numerosNoConformes.add(d.getNumero());
+            }
+        }
+
         if (opcionSeleccionada == null || opcionSeleccionada.esContenidoIgual()) {
-            // Opción 1: Orquestador único en Bolsin -> Remito -> DetalleRemito -> Documentacion
-            if (remitoSeleccionado != null) {
-                remitoSeleccionado.marcarRecibidoYAceptado(estadoRemitoRecibidoAceptado);
-            }
-            bolsinSeleccionado.actualizarRemitoYDocumentacion(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
+            bolsinSeleccionado.actualizarRemitoYDocumentacion(
+                    fechaHoraActual, estadoRemitoRecibidoAceptado, estadoDocRecibidaAceptada, empleadoActual);
         } else if (opcionSeleccionada.esFaltaDocumentacion()) {
-            // Opción 2 (A3): Remito a Recibido y aceptado parcial; docs faltantes a No recibida, demás a Recibida y aceptada
-            if (remitoSeleccionado != null) {
-                remitoSeleccionado.marcarRecibidoYAceptadoParcial(estadoRemitoRecibidoAceptadoParcial);
-                for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
-                    Documentacion doc = detalle.getDocumentacion();
-                    if (documentacionesNoConformes.contains(doc)) {
-                        doc.marcarNoRecibida(estadoDocNoRecibida, fechaHoraActual, empleadoActual);
-                    } else {
-                        doc.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
-                    }
-                }
-            }
+            bolsinSeleccionado.registrarFaltaDocumentacion(
+                    fechaHoraActual, estadoRemitoRecibidoAceptado, estadoRemitoRecibidoAceptadoParcial,
+                    estadoDocRecibidaAceptada, estadoDocNoRecibida, numerosNoConformes, empleadoActual);
         } else if (opcionSeleccionada.esNoCorrespondeDestino()) {
-            // Opción 3 (A4): Remito a Recibido y aceptado parcial; erróneas a Recibida y rechazada, demás a Recibida y aceptada
-            if (remitoSeleccionado != null) {
-                remitoSeleccionado.marcarRecibidoYAceptadoParcial(estadoRemitoRecibidoAceptadoParcial);
-                for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
-                    Documentacion doc = detalle.getDocumentacion();
-                    if (documentacionesNoConformes.contains(doc)) {
-                        doc.rechazar(estadoDocRecibidaRechazada, fechaHoraActual, empleadoActual);
-                    } else {
-                        doc.aceptar(estadoDocRecibidaAceptada, fechaHoraActual, empleadoActual);
-                    }
-                }
-            }
+            bolsinSeleccionado.registrarDestinoErroneo(
+                    fechaHoraActual, estadoRemitoRecibidoAceptado, estadoRemitoRecibidoAceptadoParcial,
+                    estadoDocRecibidaAceptada, estadoDocRecibidaRechazada, numerosNoConformes, empleadoActual);
         } else if (opcionSeleccionada.esRedirigirAOtraArea()) {
-            // Opción 4 (A5): Remito a Recibido y aceptado; docs a Para redirigir
-            if (remitoSeleccionado != null) {
-                remitoSeleccionado.marcarRecibidoYAceptado(estadoRemitoRecibidoAceptado);
-                for (DetalleRemito detalle : remitoSeleccionado.buscarDocumentacion()) {
-                    Documentacion doc = detalle.getDocumentacion();
-                    doc.paraRedirigir(estadoDocParaRedirigir, fechaHoraActual, empleadoActual);
-                }
-            }
+            bolsinSeleccionado.marcarParaRedirigir(
+                    fechaHoraActual, estadoRemitoRecibidoAceptado, estadoDocParaRedirigir, empleadoActual);
         }
     }
 
@@ -515,10 +486,11 @@ public class GestorRecepcionBolsin implements IAgregado {
      */
     public void notificarRecepcion() {
         StringBuilder detalleDocs = new StringBuilder();
-        if (remitoSeleccionado != null) {
-            for (DetalleRemito d : remitoSeleccionado.buscarDocumentacion()) {
+        for (Remito r : bolsinSeleccionado.getRemitos()) {
+            r.buscarDocumentacion();
+            for (DetalleRemito d : r.getDetalles()) {
                 Documentacion doc = d.getDocumentacion();
-                detalleDocs.append("    • [")
+                detalleDocs.append("    • [Remito ").append(r.getNumero()).append("] [")
                         .append(doc.mostrarTipoDocumentacion())
                         .append("] ")
                         .append(doc.getAsunto())
@@ -528,14 +500,15 @@ public class GestorRecepcionBolsin implements IAgregado {
             }
         }
 
-        String cmOrigenNombre = bolsinSeleccionado.getCMOrigen().getNombre();
-        String emailOrigen = "despacho." + cmOrigenNombre.toLowerCase().replaceAll("[^a-z0-9]", "") + "@srt.gob.ar";
+        ComisionMedica cmOrigen = bolsinSeleccionado.getCMOrigen();
+        String cmOrigenNombre = cmOrigen.getNombre();
+        String emailOrigen = cmOrigen.getEmail();
 
         this.ultimaNotificacionEnviada = new NotificacionRecepcionBolsin(
                 cmOrigenNombre,
                 emailOrigen,
-                bolsinSeleccionado.getNumeroPrecinto(),
-                remitoSeleccionado != null ? remitoSeleccionado.getNumero() : "N/A",
+                String.valueOf(bolsinSeleccionado.getNroPrecinto()),
+                remitoSeleccionado != null ? String.valueOf(remitoSeleccionado.getNumero()) : "N/A",
                 estadoRecibidoCMDestino.getNombreDisplay(),
                 remitoSeleccionado != null && remitoSeleccionado.getEstado() != null
                         ? remitoSeleccionado.getEstado().getNombreDisplay() : "Aceptado",
@@ -580,16 +553,18 @@ public class GestorRecepcionBolsin implements IAgregado {
     public void cargarEscenario(int escenario) {
         if (escenario == 1) {
             // Escenario 1: Comisión Médica Central (CMC) - CABA
-            ComisionMedica cmCentral = new ComisionMedica(1L, "Comisión Médica Central (CMC) - CABA");
-            Empleado emp = new Empleado(100L, "Juan Pérez (Encargado Central)", cmCentral);
-            Usuario user = new Usuario("jperez.cmc", emp);
-            this.sesionActual = new Sesion(user);
+            ComisionMedica cmCentral = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA",
+                    "Av. Roque Sáenz Peña 1100", "despacho.cmc@srt.gob.ar", "011-4321-1000");
+            Empleado emp = new Empleado("Juan Pérez (Encargado Central)", cmCentral);
+            Usuario user = new Usuario("jperez.cmc", "Operador Central", emp);
+            this.sesionActual = new Sesion(user, LocalDateTime.now());
         } else {
             // Escenario 2: CM Jurisdiccional Rosario
-            ComisionMedica cmRosario = new ComisionMedica(2L, "CMJ N° 7 - Rosario");
-            Empleado emp = new Empleado(200L, "Mariana López (Encargada Rosario)", cmRosario);
-            Usuario user = new Usuario("mlopez.rosario", emp);
-            this.sesionActual = new Sesion(user);
+            ComisionMedica cmRosario = new ComisionMedica(2, "CMJ N° 7 - Rosario",
+                    "Bv. Oroño 850", "despacho.rosario@srt.gob.ar", "0341-440-2000");
+            Empleado emp = new Empleado("Mariana López (Encargada Rosario)", cmRosario);
+            Usuario user = new Usuario("mlopez.rosario", "Operador Rosario", emp);
+            this.sesionActual = new Sesion(user, LocalDateTime.now());
         }
 
         inicializarBolsinesDeEjemplo(escenario);

@@ -25,8 +25,8 @@ public class DocumentacionRow {
         return documentacion;
     }
 
-    public Long getId() {
-        return documentacion.getId();
+    public int getNumero() {
+        return documentacion.getNumero();
     }
 
     public String getAsunto() {
