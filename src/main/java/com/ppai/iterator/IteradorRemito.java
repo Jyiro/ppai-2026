@@ -17,7 +17,7 @@ public class IteradorRemito implements IIterador {
         if (elementos == null) {
             this.lista = new Remito[0];
         } else if (elementos instanceof Remito[] remitos) {
-            this.lista = remitos.clone();
+            this.lista = remitos;
         } else {
             this.lista = new Remito[elementos.length];
             for (int i = 0; i < elementos.length; i++) {

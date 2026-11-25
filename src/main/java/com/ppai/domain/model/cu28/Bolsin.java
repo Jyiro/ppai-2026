@@ -6,7 +6,6 @@ import com.ppai.iterator.IteradorRemito;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -217,11 +216,11 @@ public class Bolsin implements IAgregado {
     }
 
     public List<Remito> getRemitos() {
-        return Collections.unmodifiableList(remitos);
+        return remitos;
     }
 
     public List<CambioEstadoBolsin> getCambiosDeEstado() {
-        return Collections.unmodifiableList(cambiosDeEstado);
+        return cambiosDeEstado;
     }
 
     @Override

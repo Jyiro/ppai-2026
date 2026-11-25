@@ -1,7 +1,6 @@
 package com.ppai.domain.model.cu28;
 
 import java.time.LocalDateTime;
-import java.util.Objects;
 
 /**
  * Entidad Sesion — CU 28: Registrar Recepción de Bolsín.
@@ -49,18 +48,5 @@ public class Sesion {
 
     public void setFechaHoraFin(LocalDateTime fechaHoraFin) {
         this.fechaHoraFin = fechaHoraFin;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Sesion that)) return false;
-        return Objects.equals(usuario, that.usuario)
-                && Objects.equals(fechaHoraInicio, that.fechaHoraInicio);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(usuario, fechaHoraInicio);
     }
 }

@@ -18,7 +18,7 @@ public class IteradorDetalleRemito implements IIterador {
         if (elementos == null) {
             this.lista = new DetalleRemito[0];
         } else if (elementos instanceof DetalleRemito[] detalles) {
-            this.lista = detalles.clone();
+            this.lista = detalles;
         } else {
             this.lista = new DetalleRemito[elementos.length];
             for (int i = 0; i < elementos.length; i++) {

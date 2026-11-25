@@ -6,7 +6,6 @@ import com.ppai.iterator.IteradorDetalleRemito;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -156,7 +155,7 @@ public class Remito implements IAgregado {
     }
 
     public List<DetalleRemito> getDetalles() {
-        return Collections.unmodifiableList(detalles);
+        return detalles;
     }
 
     @Override

@@ -19,7 +19,7 @@ public class IteradorBolsin implements IIterador {
         if (elementos == null) {
             this.lista = new Bolsin[0];
         } else if (elementos instanceof Bolsin[] bolsines) {
-            this.lista = bolsines.clone();
+            this.lista = bolsines;
         } else {
             this.lista = new Bolsin[elementos.length];
             for (int i = 0; i < elementos.length; i++) {

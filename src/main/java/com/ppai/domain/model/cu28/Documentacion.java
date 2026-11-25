@@ -2,7 +2,6 @@ package com.ppai.domain.model.cu28;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -65,7 +64,7 @@ public class Documentacion {
     }
 
     public List<CambioEstadoDocumentacion> getCambiosDeEstado() {
-        return Collections.unmodifiableList(cambiosDeEstado);
+        return cambiosDeEstado;
     }
 
     /** DS-CU28 loop sec. 8: Cierra el estado actual y pasa a Recibida y aceptada. */
