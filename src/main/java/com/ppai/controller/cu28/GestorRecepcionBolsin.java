@@ -7,7 +7,7 @@ import com.ppai.iterator.IAgregado;
 import com.ppai.iterator.IIterador;
 import com.ppai.iterator.IteradorBolsin;
 import com.ppai.repository.cu28.IRepositorioCU28;
-import com.ppai.repository.cu28.RepositorioJpaCU28;
+import com.ppai.repository.cu28.MapeadorPersistenciaCU28;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -54,7 +54,7 @@ public class GestorRecepcionBolsin implements IAgregado {
     private NotificacionRecepcionBolsin ultimaNotificacionEnviada;
 
     public GestorRecepcionBolsin(Sesion sesionActual) {
-        this(sesionActual, new RepositorioJpaCU28());
+        this(sesionActual, new MapeadorPersistenciaCU28());
     }
 
     public GestorRecepcionBolsin(Sesion sesionActual, IRepositorioCU28 repositorio) {
@@ -62,12 +62,9 @@ public class GestorRecepcionBolsin implements IAgregado {
         this.servidorCorreo = new InterfazServidorCorreo();
         this.repositorio = repositorio;
         this.bolsinesEnviados = new ArrayList<>();
-        this.estadosDisponibles = new ArrayList<>();
-        this.todosBolsines = new ArrayList<>();
+        this.estadosDisponibles = new ArrayList<>(repositorio.obtenerEstados());
+        this.todosBolsines = new ArrayList<>(repositorio.obtenerTodosBolsines());
         this.documentacionesNoConformes = new ArrayList<>();
-
-        inicializarBolsinesDeEjemplo(1); // Por defecto: Escenario 1 (CMC)
-        inicializarEstadosDelSistema();
     }
 
     public void setPantalla(PantallaRecepcionBolsin pantalla) {
@@ -548,18 +545,16 @@ public class GestorRecepcionBolsin implements IAgregado {
     }
 
     /**
-     * Permite alternar escenarios de prueba mock (CMC vs CM Regional) para probar todas las ramas del caso.
+     * Permite alternar escenarios de prueba mock (CMC vs CM Regional) hasta su eliminación en Fase 3.
      */
     public void cargarEscenario(int escenario) {
         if (escenario == 1) {
-            // Escenario 1: Comisión Médica Central (CMC) - CABA
             ComisionMedica cmCentral = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA",
                     "Av. Roque Sáenz Peña 1100", "despacho.cmc@srt.gob.ar", "011-4321-1000");
             Empleado emp = new Empleado("Juan Pérez (Encargado Central)", cmCentral);
             Usuario user = new Usuario("jperez.cmc", "Operador Central", emp);
             this.sesionActual = new Sesion(user, LocalDateTime.now());
         } else {
-            // Escenario 2: CM Jurisdiccional Rosario
             ComisionMedica cmRosario = new ComisionMedica(2, "CMJ N° 7 - Rosario",
                     "Bv. Oroño 850", "despacho.rosario@srt.gob.ar", "0341-440-2000");
             Empleado emp = new Empleado("Mariana López (Encargada Rosario)", cmRosario);
@@ -567,18 +562,7 @@ public class GestorRecepcionBolsin implements IAgregado {
             this.sesionActual = new Sesion(user, LocalDateTime.now());
         }
 
-        inicializarBolsinesDeEjemplo(escenario);
         tomarOpcionRegistrarRecepcionBolsin();
-    }
-
-    private void inicializarEstadosDelSistema() {
-        this.estadosDisponibles = new ArrayList<>(repositorio.obtenerEstados());
-    }
-
-    public void inicializarBolsinesDeEjemplo(int escenario) {
-        repositorio.inicializarDatosEscenario(sesionActual, escenario);
-        this.estadosDisponibles = new ArrayList<>(repositorio.obtenerEstados());
-        this.todosBolsines = new ArrayList<>(repositorio.obtenerTodosBolsines());
     }
 
     // Getters auxiliares para la interfaz

@@ -77,10 +77,10 @@
     2. Cero `LocalDateTime.now()` ni formateo de fechas (`DateTimeFormatter`) en la vista: las fechas ya llegan formateadas como `String` desde el Gestor.
     3. Cero llamadas "pull" a getters de datos del Gestor desde eventos UI (ej. el botón `Limpiar` notifica al Gestor en vez de llamar `gestor.getBolsinesEnviados()`).
 
-- **Corrección #7 (Confirmada — 22/11/2026 — Persistencia real en disco, Patrón Data Mapper y Seeder en script separado):**
-  - **Base de datos real en disco (cero BD en memoria en ejecución normal):** migrar `persistence.xml` de `jdbc:h2:mem:ppaidb` a persistencia real en archivo (`jdbc:h2:file:./data/ppaidb`, con `data/` en `.gitignore`). Todo cambio confirmado sobre bolsines, remitos, documentaciones e historiales queda persistido en disco al cerrar y reabrir la aplicación.
-  - **Separación estricta del Seeder en script dedicado de reinicio:** eliminar toda ejecución de `DELETE FROM ...` y toda carga automática destructiva desde el constructor de `GestorRecepcionBolsin` o `RepositorioJpaCU28`. Extraer el seeder a una herramienta/script ejecutable independiente (ej. `ReiniciarEscenarioBD` + `scripts/reiniciar-escenario.ps1`) para restablecer el escenario inicial (incluyendo bolsín multi-remito) únicamente cuando el equipo/usuario lo ejecute de forma explícita. Garantizar que ni `finCU()`, ni abrir/cerrar la app, ni cambiar de usuario borren datos persistidos.
-  - **Desacople Dominio $\leftrightarrow$ BD mediante Patrón Data Mapper (clase mapeadora dedicada):** quitar el 100% de las anotaciones JPA y constructores vacíos de `com.ppai.domain.model.cu28` (POJOs puros); crear entidades JPA dedicadas (`*JpaEntity`) dentro de `com.ppai.repository.cu28.jpa` y delegar la traducción bidireccional Dominio $\leftrightarrow$ BD en una **clase mapeadora dedicada** (ej. `MapeadorPersistenciaCU28`).
+- **Corrección #7 (Confirmada — 22/11/2026, refinada el 25/11/2026 — Persistencia real en disco, Patrón Data Mapper en JDBC y Seeder en script separado):**
+  - **Base de datos real en disco (cero BD en memoria en ejecución normal):** migrar de `jdbc:h2:mem:ppaidb` a persistencia real en archivo (`jdbc:h2:file:./data/ppaidb;AUTO_SERVER=TRUE` en `ConexionBD` + `schema.sql`, con `data/` en `.gitignore`). Todo cambio confirmado sobre bolsines, remitos, documentaciones e historiales queda persistido en disco al cerrar y reabrir la aplicación.
+  - **Separación estricta del Seeder en script dedicado de reinicio:** eliminar toda ejecución de `DELETE FROM ...` y toda carga automática destructiva desde el constructor de `GestorRecepcionBolsin` o del repositorio. Extraer el seeder a una herramienta/script ejecutable independiente (`ReiniciarEscenarioBD` + `scripts/reiniciar-escenario.ps1`) para restablecer el escenario inicial (incluyendo bolsín multi-remito) únicamente cuando el equipo/usuario lo ejecute de forma explícita. Garantizar que ni `finCU()`, ni abrir/cerrar la app borren datos persistidos.
+  - **Desacople Dominio $\leftrightarrow$ BD mediante Patrón Data Mapper en JDBC puro:** quitar el 100% de las anotaciones JPA/Hibernate, `persistence.xml` y constructores vacíos de `com.ppai.domain.model.cu28` (POJOs puros); definir el esquema relacional en `schema.sql` con **claves primarias naturales y compuestas** (cero `id` artificiales) y delegar toda traducción bidireccional Dominio $\leftrightarrow$ BD en **`MapeadorPersistenciaCU28`** (sin duplicar las 12 clases del dominio en entidades espejo).
 
 - **Corrección #8 (Confirmada — 23/11/2026 — Eliminación completa del selector `"Mock:"` y de cambio de escenario/usuario del CU 28):**
   - El cambio de usuario no forma parte del flujo básico ni de los flujos alternativos (A1–A6 / Obs. 1) del CU 28; la sesión activa es una precondición proveniente de otro caso de uso.
@@ -194,25 +194,26 @@
 
 ---
 
-### Fase 2 — Persistencia Real en Disco, Patrón Data Mapper y Seeder Independiente
-**Estado:** ⏳ **Pendiente** *(depende de Fase 1)*
+### Fase 2 — Persistencia Real en Disco, Patrón Data Mapper (JDBC) y Seeder Independiente
+**Estado:** ✅ **Cerrada** *(Gate Fase 2 aprobado: `mvn clean test` — 40/40 tests en verde bajo JDK 21: `CU28Test` 16, `DominioPuroYContratosTest` 5, `IteratorPatternTest` 13, `PersistenciaCU28Test` 6)*
 
-* **2.1 Patrón Data Mapper en capa Repository (con PKs naturales y compuestas):**
-  * Crear las entidades JPA dedicadas (`*JpaEntity`) dentro de `com.ppai.repository.cu28.jpa` utilizando **claves primarias naturales y compuestas** (sin `Long id` artificiales ni siquiera en tablas `cambio_estado_*`, `detalle_remito` o `sesion`) y delegar la traducción bidireccional Dominio puro $\leftrightarrow$ BD en una **clase mapeadora dedicada** (ej. `MapeadorPersistenciaCU28`), registrando únicamente las `*JpaEntity` en `persistence.xml`.
+* **2.1 Patrón Data Mapper en JDBC puro con PKs naturales y compuestas:**
+  * Definir `src/main/resources/schema.sql` con las 12 tablas utilizando **claves primarias naturales y compuestas** (`codigo`, `nombre`, `(nombre, ambito)`, `numero_bolsin`, `numero`, `(usuario_nombre, fecha_hora_inicio)`, `(bolsin_numero, fecha_hora_inicio)`, `(documentacion_numero, fecha_hora_inicio)`, `(remito_numero, documentacion_numero)`) sin `Long id` artificiales ni entidades espejo duplicadas.
+  * Implementar `ConexionBD` + **`MapeadorPersistenciaCU28`** (`implements IRepositorioCU28`) traduciendo bidireccionalmente Dominio puro $\leftrightarrow$ BD H2 con transacciones ACID, eliminando `hibernate-core`, `jakarta.persistence-api`, `JpaUtil`, `RepositorioJpaCU28` y `persistence.xml`.
   * Mantener `IRepositorioCU28` trabajando exclusivamente con objetos del dominio puro, persistiendo y rehidratando `Bolsin.numeroBolsin` / `numeroPrecinto` (`int`), `Remito.numero` (`int`), la `Sesion` activa (`WHERE fecha_hora_fin IS NULL`) y la totalidad de remitos y detalles de cada bolsín.
 
 * **2.2 Base de datos persistente en disco y Seeder extraído a script independiente:**
-  * Migrar `persistence.xml` de `jdbc:h2:mem:ppaidb` a persistencia real en disco (`jdbc:h2:file:./data/ppaidb`) y agregar `data/` a `.gitignore`.
-  * Eliminar `inicializarBolsinesDeEjemplo(...)` del constructor de `GestorRecepcionBolsin` y eliminar los `DELETE FROM ...` del flujo normal de la aplicación: la app simplemente lee y persiste sobre la BD existente (solo crea el esquema si no existe; los datos iniciales se cargan mediante el script dedicado o sembrado inicial no destructivo únicamente si la BD está vacía).
-  * Extraer el seeder a una clase/script independiente de reinicio de escenario (ej. `ReiniciarEscenarioBD` + `scripts/reiniciar-escenario.ps1`) que incluya al menos un bolsín multi-remito (`2+` remitos y múltiples documentaciones) para cuando el equipo/usuario necesite restablecer la BD de forma explícita, reemplazando `RepositorioMockBolsines` dentro de `src/main/java`.
+  * Configurar `ConexionBD` con persistencia real en disco (`jdbc:h2:file:./data/ppaidb;AUTO_SERVER=TRUE`) y agregar `data/` a `.gitignore`.
+  * Eliminar `inicializarBolsinesDeEjemplo(...)` del constructor de `GestorRecepcionBolsin` y reemplazar `RepositorioMockBolsines` en `src/main/java`: la app simplemente lee y persiste sobre la BD existente (sembrado inicial no destructivo solo si `repositorio.estaVacia()`).
+  * Extraer el seeder a una clase/script independiente de reinicio de escenario (`ReiniciarEscenarioBD` + `scripts/reiniciar-escenario.ps1`) con soporte de perfil (`cmc` / `rosario`) y bolsín multi-remito (`8820` con remitos `892` y `893`, 4 documentaciones).
   * Hacer que `JavaFxApp` lea la `Sesion` activa persistida en BD vía repositorio (sin hardcodear `ComisionMedica`/`Empleado`/`Usuario`/`Sesion` en memoria) y limpiar los imports sin uso de `Main.java`.
   * Garantizar que `finCU()` solo limpie referencias transitorias del turno en memoria y jamás altere ni borre datos persistidos en la BD.
-  * Configurar una BD/perfil aislado para que la suite de tests automatizados sea determinista sin contaminar `./data/ppaidb`.
+  * Aislar las pruebas automatizadas con `@TempDir` sobre archivos H2 temporales reales sin contaminar `./data/ppaidb`.
 
 * **Gate de Verificación Íntegra (Fase 2):**
-  * **Test de durabilidad real:** confirmar una recepción (incluyendo un bolsín con **2+ remitos y múltiples documentaciones**), cerrar completamente `EntityManagerFactory`, reabrirlo y verificar que `Bolsin`, `CambioEstadoBolsin`, **todos** sus `Remito`, `Documentacion` y `CambioEstadoDocumentacion` mantienen su estado e historial en disco.
-  * **Test de no-destrucción al iniciar y finalizar:** comprobar que instanciar `GestorRecepcionBolsin` y ejecutar `finCU()` sobre una BD ya poblada **no borra ni reinicia** recepciones confirmadas previamente en disco.
-  * **Test de Data Mapper y script de reinicio:** verificar el mapeo bidireccional completo vía `MapeadorPersistenciaCU28` y comprobar que `ReiniciarEscenarioBD` deja la BD limpia y poblada con los datos semilla (incluyendo el bolsín multi-remito) y sin duplicar catálogos (`Estado`, `ComisionMedica`, `TipoDocumento`).
+  * **Test de durabilidad real:** confirmar recepciones (`7041` y multi-remito `8820`), ejecutar `ConexionBD.cerrar()`, reabrir `MapeadorPersistenciaCU28` sobre el mismo archivo en disco y verificar que `Bolsin`, `CambioEstadoBolsin`, **todos** sus `Remito`, `Documentacion` y `CambioEstadoDocumentacion` mantienen su estado e historial en disco.
+  * **Test de no-destrucción al iniciar y finalizar:** comprobar que instanciar un nuevo `GestorRecepcionBolsin` y ejecutar `finCU()` sobre una BD ya poblada **no borra ni reinicia** recepciones confirmadas previamente en disco.
+  * **Test de Data Mapper y script de reinicio:** verificar `MapeadorPersistenciaCU28` y comprobar idempotencia de `ReiniciarEscenarioBD` sin duplicar catálogos (`9` estados, `7` CMs, `4` tipos, `7` bolsines, `8` remitos, `1` sesión activa).
 
 ---
 
@@ -311,7 +312,7 @@
 | :---: | :--- | :---: | :--- |
 | **0** | Congelamiento del Contrato de Secuencia y Decisiones | ✅ Cerrada | `.md` 100% alineados con el DS real + todos los puntos abiertos resueltos |
 | **1** | Patrón Iterator Exacto + Dominio OO Puro (Opción B) | ✅ Cerrada | Test pureza Dominio (0 JPA/JavaFX, 0 `id` artificiales, solapamiento E1+E2) + Test contratos estrictos por reflexión (`Object[]` en iteradores, `int` limpios) + filtro real sin look-ahead + tests multi-remito en Dominio |
-| **2** | Data Mapper + H2 en disco + script seeder separado | ⏳ Pendiente | Test durabilidad en disco (bolsín 2+ remitos) tras cierre/reapertura EMF + Test no-destrucción al iniciar/`finCU()` + Test `MapeadorPersistenciaCU28` y `ReiniciarEscenarioBD` |
+| **2** | Data Mapper (JDBC) + H2 en disco + script seeder separado | ✅ Cerrada | Test durabilidad en disco (bolsín 2+ remitos) tras cierre/reapertura + Test no-destrucción al iniciar/`finCU()` + Test `MapeadorPersistenciaCU28` y `ReiniciarEscenarioBD` (`mvn clean test` 40/40) |
 | **3** | CU 29 (`<<includes>>`) con Gestor Propio (Solo Primitivos) | ⏳ Pendiente | Tests `GestorNotificarRecepcionBolsin` post-commit + tests integración multi-remito (Opción 1, A3, A4, A5) + contratos hacia Pantalla solo primitivos / `String` |
 | **4** | Desacople Estructural del Boundary (BCE + Multi-Remito) | ⏳ Pendiente | `ArquitecturaBCETest` bloqueante sobre `com.ppai.boundary.**` (0 imports fuera de `GestorRecepcionBolsin`/control/`java.*`/`javafx.*`; 0 fechas/`LocalDateTime`/literales de estados; frontera 100% primitivos/`String`) + UI multi-remito funcional en Pasos 1–4 |
 | **5** | Diseño Visual, UX Definitiva y Usuario Real | ⏳ Pendiente | Colores/layout/textos acordados + test estático higiene UX + recorrido visual completo de los 4 pasos y alternativos |

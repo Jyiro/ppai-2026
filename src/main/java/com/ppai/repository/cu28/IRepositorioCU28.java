@@ -13,7 +13,9 @@ import java.util.List;
  */
 public interface IRepositorioCU28 {
 
-    void inicializarDatosEscenario(Sesion sesionActual, int escenario);
+    boolean estaVacia();
+
+    Sesion obtenerSesionActiva();
 
     List<Estado> obtenerEstados();
 

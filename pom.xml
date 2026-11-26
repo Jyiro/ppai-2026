@@ -9,17 +9,15 @@
     <packaging>jar</packaging>
 
     <name>ppai-2026</name>
-    <description>Proyecto Base PPAI 2026 - Arquitectura Orientada a Objetos con Hibernate y H2</description>
+    <description>Proyecto Base PPAI 2026 - Arquitectura Orientada a Objetos con H2 y Data Mapper JDBC</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        
+
         <!-- Versions -->
-        <hibernate.version>6.5.2.Final</hibernate.version>
         <h2.version>2.2.224</h2.version>
-        <jakarta.persistence.version>3.1.0</jakarta.persistence.version>
         <junit.version>5.10.2</junit.version>
         <slf4j.version>2.0.13</slf4j.version>
         <javafx.version>21.0.2</javafx.version>
@@ -36,20 +34,6 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
-        </dependency>
-
-        <!-- JPA API -->
-        <dependency>
-            <groupId>jakarta.persistence</groupId>
-            <artifactId>jakarta.persistence-api</artifactId>
-            <version>${jakarta.persistence.version}</version>
-        </dependency>
-
-        <!-- Hibernate Core (ORM) -->
-        <dependency>
-            <groupId>org.hibernate.orm</groupId>
-            <artifactId>hibernate-core</artifactId>
-            <version>${hibernate.version}</version>
         </dependency>
 
         <!-- H2 Database Engine -->

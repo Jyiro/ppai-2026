@@ -3,12 +3,19 @@ package com.ppai;
 import com.ppai.boundary.cu28.PantallaRecepcionBolsin;
 import com.ppai.controller.cu28.GestorRecepcionBolsin;
 import com.ppai.domain.model.cu28.*;
+import com.ppai.repository.ConexionBD;
+import com.ppai.repository.cu28.IRepositorioCU28;
+import com.ppai.repository.cu28.MapeadorPersistenciaCU28;
+import com.ppai.repository.cu28.ReiniciarEscenarioBD;
 import javafx.application.Platform;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -22,6 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class CU28Test {
 
+    @TempDir
+    Path tempDir;
+
     private GestorRecepcionBolsin gestor;
     private Sesion sesionCentral;
 
@@ -34,15 +44,20 @@ public class CU28Test {
         }
     }
 
+    @AfterAll
+    static void restaurarConexion() {
+        ConexionBD.restaurarUrlPorDefecto();
+        ConexionBD.cerrar();
+    }
+
     @BeforeEach
     void setUp() {
-        ComisionMedica cmCentral = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA",
-                "Av. Roque Sáenz Peña 1100", "despacho.cmc@srt.gob.ar", "011-4321-1000");
-        Empleado empleado = new Empleado("Juan Pérez", cmCentral);
-        Usuario usuario = new Usuario("jperez", "Operador Central", empleado);
-        sesionCentral = new Sesion(usuario, LocalDateTime.now());
+        ConexionBD.configurarUrl("jdbc:h2:file:" + tempDir.resolve("ppaidb-cu28").toAbsolutePath());
+        ReiniciarEscenarioBD.reiniciar("cmc");
+        IRepositorioCU28 repo = new MapeadorPersistenciaCU28();
+        sesionCentral = repo.obtenerSesionActiva();
 
-        gestor = new GestorRecepcionBolsin(sesionCentral);
+        gestor = new GestorRecepcionBolsin(sesionCentral, repo);
         gestor.tomarOpcionRegistrarRecepcionBolsin();
     }
 
@@ -208,13 +223,9 @@ public class CU28Test {
     @Test
     @DisplayName("Flujo Alternativo A5 (Negativo): Opción 4 solo permitida en CMC, no aplica en CM Regional")
     void testFlujoAlternativoA5_NoAplicaEnCMNoCentral() {
-        ComisionMedica cmRosario = new ComisionMedica(2, "CMJ N° 7 - Rosario",
-                "Bv. Oroño 850", "despacho.rosario@srt.gob.ar", "0341-440-2000");
-        Empleado empRosario = new Empleado("Mariana López", cmRosario);
-        Usuario userRosario = new Usuario("mlopez.rosario", "Operador Rosario", empRosario);
-        Sesion sesionRosario = new Sesion(userRosario, LocalDateTime.now());
-        GestorRecepcionBolsin gestorRosario = new GestorRecepcionBolsin(sesionRosario);
-        gestorRosario.inicializarBolsinesDeEjemplo(2);
+        ReiniciarEscenarioBD.reiniciar("rosario");
+        IRepositorioCU28 repoRosario = new MapeadorPersistenciaCU28();
+        GestorRecepcionBolsin gestorRosario = new GestorRecepcionBolsin(repoRosario.obtenerSesionActiva(), repoRosario);
         gestorRosario.tomarOpcionRegistrarRecepcionBolsin();
 
         List<Bolsin> bolsines = gestorRosario.getBolsinesEnviados();

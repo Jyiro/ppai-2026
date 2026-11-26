@@ -301,7 +301,8 @@ public class IteratorPatternTest {
         Bolsin bOtraCM = new Bolsin(3, 7043, ahora, 1.5, cmCordoba, cmRosario, List.of(), estEnviado, ahora, emp);
 
         IRepositorioCU28 repoEnMemoria = new IRepositorioCU28() {
-            @Override public void inicializarDatosEscenario(Sesion s, int escenario) {}
+            @Override public boolean estaVacia() { return false; }
+            @Override public Sesion obtenerSesionActiva() { return sesion; }
             @Override public List<Estado> obtenerEstados() { return List.of(estEnviado, estRecibido); }
             @Override public List<ComisionMedica> obtenerComisionesMedicas() { return List.of(cmCentral, cmCordoba, cmRosario); }
             @Override public List<Bolsin> obtenerTodosBolsines() { return List.of(bValido, bYaRecibido, bOtraCM); }

@@ -40,3 +40,6 @@ target/
 
 # Guías de estudio personales
 GUIA_ESTUDIO_DEFENSA_CU28.md
+
+# Base de datos H2 persistente en disco
+data/

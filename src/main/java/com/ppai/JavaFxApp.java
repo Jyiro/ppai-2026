@@ -2,20 +2,18 @@ package com.ppai;
 
 import com.ppai.boundary.cu28.PantallaRecepcionBolsin;
 import com.ppai.controller.cu28.GestorRecepcionBolsin;
-import com.ppai.domain.model.cu28.ComisionMedica;
-import com.ppai.domain.model.cu28.Empleado;
 import com.ppai.domain.model.cu28.Sesion;
-import com.ppai.domain.model.cu28.Usuario;
-import com.ppai.repository.JpaUtil;
+import com.ppai.repository.ConexionBD;
+import com.ppai.repository.cu28.IRepositorioCU28;
+import com.ppai.repository.cu28.MapeadorPersistenciaCU28;
+import com.ppai.repository.cu28.ReiniciarEscenarioBD;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
-import java.time.LocalDateTime;
-
 /**
  * Aplicación de Escritorio JavaFX — PPAI 2026 (Diseño de Sistemas de Información).
- * Inicializa el contexto de objetos, el Gestor de CU y la Pantalla Boundary.
+ * Lee la sesión activa desde la base de datos persistente e inicializa el Gestor y la Pantalla.
  */
 public class JavaFxApp extends Application {
 
@@ -26,18 +24,24 @@ public class JavaFxApp extends Application {
         System.out.println("║   Caso de Uso: CU 28 - Registrar Recepción de Bolsín     ║");
         System.out.println("╚══════════════════════════════════════════════════════════╝");
 
-        // 1. Contexto de Sesión inicial (Usuario logueado con su Empleado y Comisión Médica)
-        ComisionMedica cmDestino = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA",
-                "Av. Roque Sáenz Peña 1100", "despacho.cmc@srt.gob.ar", "011-4321-1000");
-        Empleado empleado = new Empleado("Juan Pérez (Encargado Central)", cmDestino);
-        Usuario usuario = new Usuario("jperez.cmc", "Operador Central", empleado);
-        Sesion sesionActual = new Sesion(usuario, LocalDateTime.now());
+        // 1. Repositorio Data Mapper sobre H2 persistente en disco (siembra inicial solo si BD vacía)
+        IRepositorioCU28 repositorio = new MapeadorPersistenciaCU28();
+        if (repositorio.estaVacia()) {
+            ReiniciarEscenarioBD.reiniciar("cmc");
+        }
 
-        System.out.println("[APP] Sesión iniciada como: " + usuario.getNombre()
-                + " | CM: " + empleado.getCM().getNombre());
+        Sesion sesionActual = repositorio.obtenerSesionActiva();
+        if (sesionActual == null) {
+            throw new IllegalStateException(
+                    "No existe ninguna sesión activa en la base de datos. "
+                            + "Ejecute scripts/reiniciar-escenario.ps1 para inicializar un usuario activo.");
+        }
 
-        // 2. Instanciación pura orientada a objetos de Gestor (Control) y Pantalla (Boundary)
-        GestorRecepcionBolsin gestor = new GestorRecepcionBolsin(sesionActual);
+        System.out.println("[APP] Sesión activa leída de BD: " + sesionActual.getUsuario().getNombre()
+                + " | CM: " + sesionActual.getCMEmpleado().getNombre());
+
+        // 2. Instanciación de Gestor (Control) y Pantalla (Boundary)
+        GestorRecepcionBolsin gestor = new GestorRecepcionBolsin(sesionActual, repositorio);
         PantallaRecepcionBolsin pantalla = new PantallaRecepcionBolsin(gestor);
         gestor.setPantalla(pantalla);
 
@@ -59,7 +63,7 @@ public class JavaFxApp extends Application {
 
     @Override
     public void stop() {
-        JpaUtil.shutdown();
+        ConexionBD.cerrar();
     }
 
     public static void main(String[] args) {
