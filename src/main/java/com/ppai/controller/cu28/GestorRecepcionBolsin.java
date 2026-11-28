@@ -1,34 +1,53 @@
 package com.ppai.controller.cu28;
 
-import com.ppai.boundary.cu28.InterfazServidorCorreo;
 import com.ppai.boundary.cu28.PantallaRecepcionBolsin;
-import com.ppai.domain.model.cu28.*;
+import com.ppai.controller.cu29.GestorNotificarRecepcionBolsin;
+import com.ppai.domain.model.cu28.Bolsin;
+import com.ppai.domain.model.cu28.ComisionMedica;
+import com.ppai.domain.model.cu28.DetalleRemito;
+import com.ppai.domain.model.cu28.Documentacion;
+import com.ppai.domain.model.cu28.Empleado;
+import com.ppai.domain.model.cu28.Estado;
+import com.ppai.domain.model.cu28.Remito;
+import com.ppai.domain.model.cu28.Sesion;
+import com.ppai.domain.model.cu28.Usuario;
 import com.ppai.iterator.IAgregado;
 import com.ppai.iterator.IIterador;
 import com.ppai.iterator.IteradorBolsin;
 import com.ppai.repository.cu28.IRepositorioCU28;
-import com.ppai.repository.cu28.MapeadorPersistenciaCU28;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Controlador GestorRecepcionBolsin — CU 28: Registrar Recepción de Bolsín.
- * Orquesta los mensajes del caso de uso entre la Pantalla (Boundary) y el Dominio (Entity).
+ * Orquesta el caso de uso entre PantallaRecepcionBolsin (Boundary) y el Dominio OO puro,
+ * exponiendo hacia la interfaz exclusivamente tipos primitivos / String / arreglos.
  * Implementa IAgregado para delegar el recorrido y filtrado de bolsines en IteradorBolsin.
- * Mantiene estricta trazabilidad con el Diagrama de Secuencia y el modelo de objetos DSI.
  *
  * NOTA DE DISEÑO: No utiliza ni extiende java.util.Iterable ni java.util.Iterator.
  */
 public class GestorRecepcionBolsin implements IAgregado {
 
+    public static final int OPCION_CONTENIDO_IGUAL = 1;
+    public static final int OPCION_FALTA_DOCUMENTACION = 2;
+    public static final int OPCION_NO_CORRESPONDE_DESTINO = 3;
+    public static final int OPCION_REDIRIGIR_OTRA_AREA = 4;
+
+    private static final String SEV_OK = "OK";
+    private static final String SEV_WARN = "WARN";
+    private static final String SEV_ERROR = "ERROR";
+    private static final String SEV_INFO = "INFO";
+
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
     private PantallaRecepcionBolsin pantalla;
-    private final InterfazServidorCorreo servidorCorreo;
     private final IRepositorioCU28 repositorio;
+    private final GestorNotificarRecepcionBolsin gestorNotificacion;
 
     private Sesion sesionActual;
     private ComisionMedica comisionMedicaEmpleado;
@@ -37,9 +56,8 @@ public class GestorRecepcionBolsin implements IAgregado {
     private List<Bolsin> todosBolsines;
     private List<Bolsin> bolsinesEnviados;
     private Bolsin bolsinSeleccionado;
-    private Remito remitoSeleccionado;
-    private OpcionRecepcion opcionSeleccionada;
-    private List<Documentacion> documentacionesNoConformes;
+    private int opcionSeleccionada;
+    private Set<Integer> numerosDocsNoConformes;
 
     private List<Estado> estadosDisponibles;
     private Estado estadoRecibidoCMDestino;
@@ -51,28 +69,27 @@ public class GestorRecepcionBolsin implements IAgregado {
     private Estado estadoDocParaRedirigir;
 
     private LocalDateTime fechaHoraActual;
-    private NotificacionRecepcionBolsin ultimaNotificacionEnviada;
-
-    public GestorRecepcionBolsin(Sesion sesionActual) {
-        this(sesionActual, new MapeadorPersistenciaCU28());
-    }
+    private String[] ultimaNotificacionDatos;
+    private String[][] ultimosRemitosActualizados;
 
     public GestorRecepcionBolsin(Sesion sesionActual, IRepositorioCU28 repositorio) {
+        this(sesionActual, repositorio, new GestorNotificarRecepcionBolsin());
+    }
+
+    public GestorRecepcionBolsin(Sesion sesionActual,
+                                 IRepositorioCU28 repositorio,
+                                 GestorNotificarRecepcionBolsin gestorNotificacion) {
         this.sesionActual = sesionActual;
-        this.servidorCorreo = new InterfazServidorCorreo();
         this.repositorio = repositorio;
+        this.gestorNotificacion = gestorNotificacion;
         this.bolsinesEnviados = new ArrayList<>();
         this.estadosDisponibles = new ArrayList<>(repositorio.obtenerEstados());
         this.todosBolsines = new ArrayList<>(repositorio.obtenerTodosBolsines());
-        this.documentacionesNoConformes = new ArrayList<>();
+        this.numerosDocsNoConformes = new LinkedHashSet<>();
     }
 
     public void setPantalla(PantallaRecepcionBolsin pantalla) {
         this.pantalla = pantalla;
-    }
-
-    public PantallaRecepcionBolsin getPantalla() {
-        return pantalla;
     }
 
     /**
@@ -82,40 +99,33 @@ public class GestorRecepcionBolsin implements IAgregado {
         System.out.println("[GESTOR] Iniciando CU-28: Registrar Recepción de Bolsín.");
 
         this.bolsinSeleccionado = null;
-        this.remitoSeleccionado = null;
-        this.opcionSeleccionada = null;
-        this.documentacionesNoConformes = new ArrayList<>();
+        this.opcionSeleccionada = 0;
+        this.numerosDocsNoConformes = new LinkedHashSet<>();
 
-        // DS-CU28 pasos 4-7: Buscar usuario y CM
         buscarUsuario();
 
-        // DS-CU28 paso 8: Mostrar CM del usuario en pantalla
         if (pantalla != null) {
-            pantalla.mostrarCM(comisionMedicaEmpleado);
+            String nombreUsr = (sesionActual != null && sesionActual.getUsuario() != null)
+                    ? sesionActual.getUsuario().getNombre() : "";
+            String nombreEmp = (empleadoActual != null) ? empleadoActual.getNombre() : "";
+            String nombreCM = (comisionMedicaEmpleado != null) ? comisionMedicaEmpleado.getNombre() : "";
+            pantalla.mostrarCM(nombreUsr, nombreEmp, nombreCM);
         }
 
-        // DS-CU28 paso 9 + sec. 2: Buscar bolsines en estado Enviado con Patrón Iterator
         buscarBolsinEstadoEnviado();
-
-        // DS-CU28 sec. 3 + paso 10: Mostrar bolsines y solicitar selección (FUERA DEL LOOP)
-        if (pantalla != null) {
-            pantalla.mostrarBolsines(bolsinesEnviados);
-            pantalla.mostrarNumeroPrecinto();
-            pantalla.mostrarCMOrigen();
-            pantalla.solicitarSeleccionBolsin();
-        }
+        notificarListadoBolsinesAPantalla(this.bolsinesEnviados);
     }
 
     /**
-     * DS-CU28 pasos 4-7: Obtiene el usuario autenticado y su Comisión Médica asignada.
+     * DS-CU28 pasos 4-7: Obtiene usuario autenticado, su CM y empleado responsable vía Sesion.
      */
     public void buscarUsuario() {
         Usuario usuarioActual = sesionActual.getUsuario();
         this.comisionMedicaEmpleado = sesionActual.getCMEmpleado();
         this.empleadoActual = sesionActual.getEmpleadoLogueado();
-        System.out.println("[GESTOR] Usuario: " + usuarioActual.getNombre()
-                + " | Empleado: " + empleadoActual.getNombre()
-                + " | CM: " + comisionMedicaEmpleado.getNombre());
+        System.out.println("[GESTOR] Usuario: " + (usuarioActual != null ? usuarioActual.getNombre() : "-")
+                + " | Empleado: " + (empleadoActual != null ? empleadoActual.getNombre() : "-")
+                + " | CM: " + (comisionMedicaEmpleado != null ? comisionMedicaEmpleado.getNombre() : "-"));
     }
 
     @Override
@@ -127,8 +137,8 @@ public class GestorRecepcionBolsin implements IAgregado {
     }
 
     /**
-     * DS-CU28 paso 9 y loop sec. 2: Filtra bolsines cuyo estado sea ENVIADO hacia la CM del empleado
-     * utilizando el patrón Iterator propio (IteradorBolsin).
+     * DS-CU28 paso 9 y loop sec. 2: Filtra bolsines en estado ENVIADO dirigidos a la CM del usuario
+     * mediante IteradorBolsin (sin look-ahead).
      */
     public void buscarBolsinEstadoEnviado() {
         this.bolsinesEnviados.clear();
@@ -149,183 +159,352 @@ public class GestorRecepcionBolsin implements IAgregado {
     }
 
     /**
-     * Flujos Alternativos A1 y A2: Filtra bolsines por número de precinto y/o CM de origen.
+     * Flujos Alternativos A1 y A2: Filtra bolsines por precinto (String comparado contra int)
+     * y/o nombre de CM de origen, empujando los resultados a la pantalla en primitivos.
      */
-    public List<Bolsin> filtrarBolsines(String filtroPrecinto, ComisionMedica filtroCMOrigen) {
-        List<Bolsin> filtrados = new ArrayList<>(bolsinesEnviados);
+    public int[] filtrarBolsines(String filtroPrecinto, String nombreCMOrigen) {
+        List<Bolsin> filtrados = new ArrayList<>(this.bolsinesEnviados);
 
         if (filtroPrecinto != null && !filtroPrecinto.trim().isEmpty()) {
             String f = filtroPrecinto.trim();
-            filtrados = filtrados.stream()
-                    .filter(b -> String.valueOf(b.getNroPrecinto()).contains(f))
-                    .collect(Collectors.toList());
+            List<Bolsin> porPrecinto = new ArrayList<>();
+            for (Bolsin b : filtrados) {
+                if (String.valueOf(b.getNroPrecinto()).contains(f)) {
+                    porPrecinto.add(b);
+                }
+            }
+            filtrados = porPrecinto;
 
             if (filtrados.isEmpty()) {
+                notificarListadoBolsinesAPantalla(filtrados);
                 if (pantalla != null) {
-                    pantalla.mostrarAlerta("Flujo Alternativo A1",
+                    pantalla.mostrarAlerta("Bolsín no encontrado",
                             "No se encuentra bolsín con el número de precinto ingresado: '" + filtroPrecinto + "'.");
                 }
-                return filtrados;
+                return new int[0];
             }
         }
 
-        if (filtroCMOrigen != null) {
-            filtrados = filtrados.stream()
-                    .filter(b -> b.getCMOrigen() != null && b.getCMOrigen().getCodigo() == filtroCMOrigen.getCodigo())
-                    .collect(Collectors.toList());
+        if (nombreCMOrigen != null && !nombreCMOrigen.trim().isEmpty()) {
+            String cmFiltro = nombreCMOrigen.trim();
+            List<Bolsin> porCM = new ArrayList<>();
+            for (Bolsin b : filtrados) {
+                if (b.getNombreCMOrigen().equalsIgnoreCase(cmFiltro)) {
+                    porCM.add(b);
+                }
+            }
+            filtrados = porCM;
 
-            if (filtrados.isEmpty() && pantalla != null) {
-                pantalla.mostrarAlerta("Flujo Alternativo A2",
-                        "No se encuentra bolsín con la CM origen seleccionada: " + filtroCMOrigen.getNombre() + ".");
+            if (filtrados.isEmpty()) {
+                notificarListadoBolsinesAPantalla(filtrados);
+                if (pantalla != null) {
+                    pantalla.mostrarAlerta("Sin envíos para la CM origen",
+                            "No se encuentra bolsín con la CM origen seleccionada: " + cmFiltro + ".");
+                }
+                return new int[0];
             }
         }
 
-        return filtrados;
+        notificarListadoBolsinesAPantalla(filtrados);
+        return extraerPrecintos(filtrados);
     }
 
     /**
-     * DS-CU28 paso 11-12: Captura la selección de un bolsín a través de su objeto o precinto.
+     * Restablece la vista al listado completo de bolsines enviados (sin pull desde UI).
      */
-    public void tomarSeleccionBolsin(Bolsin bolsin) {
-        if (bolsin == null) {
-            System.out.println("[GESTOR] Advertencia: Se intentó seleccionar un bolsín nulo.");
+    public void limpiarFiltros() {
+        notificarListadoBolsinesAPantalla(this.bolsinesEnviados);
+    }
+
+    /**
+     * DS-CU28 pasos 11-12: Captura el número de precinto seleccionado desde la pantalla.
+     */
+    public void tomarSeleccionBolsin(int numeroPrecinto) {
+        Bolsin encontrado = null;
+        for (Bolsin b : bolsinesEnviados) {
+            if (b.getNroPrecinto() == numeroPrecinto) {
+                encontrado = b;
+                break;
+            }
+        }
+        if (encontrado == null) {
+            if (pantalla != null) {
+                pantalla.mostrarAlerta("Bolsín no encontrado",
+                        "No se encontró un bolsín en estado Enviado con precinto: " + numeroPrecinto);
+            }
             return;
         }
 
-        this.bolsinSeleccionado = bolsin;
+        this.bolsinSeleccionado = encontrado;
         System.out.println("[GESTOR] Bolsín seleccionado: " + bolsinSeleccionado.getNroPrecinto());
         obtenerInformacionRemito();
     }
 
     /**
-     * Sobrecarga de compatibilidad con la secuencia de texto.
-     */
-    public void tomarSeleccionOpcion(String precinto) {
-        Bolsin encontrado = null;
-        String buscado = (precinto != null) ? precinto.trim() : "";
-        for (Bolsin b : bolsinesEnviados) {
-            if (String.valueOf(b.getNroPrecinto()).equals(buscado)) {
-                encontrado = b;
-                break;
-            }
-        }
-        if (encontrado != null) {
-            tomarSeleccionBolsin(encontrado);
-        } else if (pantalla != null) {
-            pantalla.mostrarAlerta("Bolsín no encontrado", "No se encontró un bolsín con precinto: " + precinto);
-        }
-    }
-
-    /**
-     * DS-CU28 pasos 13-17: Obtiene datos del remito, los muestra en pantalla y presenta opciones de recepción.
+     * DS-CU28 pasos 13-17: Lee todos los remitos y documentaciones del bolsín seleccionado
+     * (mediante IteradorRemito -> IteradorDetalleRemito) y envía matrices de Strings a la pantalla.
      */
     public void obtenerInformacionRemito() {
-        if (bolsinSeleccionado == null) return;
+        if (bolsinSeleccionado == null) {
+            return;
+        }
 
-        bolsinSeleccionado.obtenerInformacionRemito();
-        this.remitoSeleccionado = !bolsinSeleccionado.getRemitos().isEmpty()
-                ? bolsinSeleccionado.getRemitos().get(0)
-                : null;
-        if (remitoSeleccionado == null) {
+        String[][] infoRemitos = bolsinSeleccionado.obtenerInformacionRemito();
+        if (bolsinSeleccionado.getRemitos().isEmpty()) {
             if (pantalla != null) {
-                pantalla.mostrarAlerta("Sin Remito", "El bolsín seleccionado no tiene remito asociado.");
+                pantalla.mostrarAlerta("Sin Remito", "El bolsín seleccionado no tiene remitos asociados.");
             }
             return;
         }
 
-        // DS-CU28 paso 15: Mostrar datos de remito
-        if (pantalla != null) {
-            pantalla.mostrarDatosDeRemito(remitoSeleccionado);
+        List<String[]> filasDocs = new ArrayList<>();
+        StringBuilder remitosCsv = new StringBuilder();
+        List<Remito> remitos = bolsinSeleccionado.getRemitos();
+        for (int i = 0; i < remitos.size(); i++) {
+            Remito r = remitos.get(i);
+            if (i > 0) {
+                remitosCsv.append(", ");
+            }
+            remitosCsv.append(r.getNumero());
 
-            // DS-CU28 paso 16-17: Mostrar opciones y solicitar selección
-            List<OpcionRecepcion> opciones = buscarOpcionesRecepcion();
-            pantalla.mostrarOpcionesRecepcion(opciones);
+            for (DetalleRemito det : r.getDetalles()) {
+                Documentacion doc = det.getDocumentacion();
+                if (doc != null) {
+                    String estadoActualDisplay = doc.getEstadoActual() != null
+                            ? doc.getEstadoActual().getNombreDisplay()
+                            : "-";
+                    filasDocs.add(new String[]{
+                            String.valueOf(r.getNumero()),
+                            String.valueOf(doc.getNumero()),
+                            doc.mostrarTipoDocumentacion(),
+                            doc.getAsunto(),
+                            estadoActualDisplay
+                    });
+                }
+            }
+        }
+
+        String fechaEnvio = bolsinSeleccionado.getFechaEnvio() != null
+                ? bolsinSeleccionado.getFechaEnvio().format(FORMATO_FECHA)
+                : "-";
+        int totalDocs = Math.max(filasDocs.size(), infoRemitos.length);
+
+        String[] resumenBolsin = new String[]{
+                String.valueOf(bolsinSeleccionado.getNroPrecinto()),
+                bolsinSeleccionado.getNombreCMOrigen(),
+                fechaEnvio,
+                remitosCsv.toString(),
+                String.valueOf(remitos.size()),
+                String.valueOf(totalDocs)
+        };
+
+        if (pantalla != null) {
+            pantalla.mostrarDatosDeRemito(resumenBolsin, filasDocs.toArray(new String[0][]));
+            pantalla.mostrarOpcionesRecepcion(buscarOpcionesRecepcion());
             pantalla.solicitarSeleccionOpcion();
         }
     }
 
     /**
-     * Genera la lista de opciones de recepción según la regla de negocio del CU 28.
-     * Evalúa si la CM destino es la CMC para habilitar la opción 4.
+     * Retorna las 4 opciones de recepción como matriz de String para la pantalla.
+     * Fila: [numero, titulo, descripcion, impactoRemito, impactoDoc, requiereSeleccionDocs, habilitada]
      */
-    public List<OpcionRecepcion> buscarOpcionesRecepcion() {
-        List<OpcionRecepcion> opciones = new ArrayList<>();
+    public String[][] buscarOpcionesRecepcion() {
+        asegurarEstadosCargados();
+        boolean esDestinoCMC = comisionMedicaEmpleado != null && comisionMedicaEmpleado.esCentral();
 
-        boolean esDestinoCMC = comisionMedicaEmpleado != null
-                && (comisionMedicaEmpleado.getNombre().toUpperCase().contains("CENTRAL")
-                || comisionMedicaEmpleado.getNombre().toUpperCase().contains("CMC"));
+        String remAcep = estadoRemitoRecibidoAceptado.getNombreDisplay();
+        String remParc = estadoRemitoRecibidoAceptadoParcial.getNombreDisplay();
+        String docAcep = estadoDocRecibidaAceptada.getNombreDisplay();
+        String docNoRec = estadoDocNoRecibida.getNombreDisplay();
+        String docRech = estadoDocRecibidaRechazada.getNombreDisplay();
+        String docRedir = estadoDocParaRedirigir.getNombreDisplay();
 
-        opciones.add(new OpcionRecepcion(
-                1,
-                "El contenido es igual al registrado",
-                "Flujo básico: Todos los documentos y remitos coinciden exactamente con lo enviado.",
-                "Recibido y aceptado",
-                "Recibida y aceptada (todas)",
-                false,
-                false
-        ));
-
-        opciones.add(new OpcionRecepcion(
-                2,
-                "No se recibe toda la documentación",
-                "Flujo A3: Uno o más documentos registrados en el remito no están físicamente en el bolsín.",
-                "Recibido y aceptado parcial",
-                "Recibida y aceptada (las presentes) / No recibida (las faltantes)",
-                true,
-                false
-        ));
-
-        opciones.add(new OpcionRecepcion(
-                3,
-                "Existe documentación que no corresponde al destino",
-                "Flujo A4: Se recibió documentación física dirigida erróneamente a esta Comisión Médica.",
-                "Recibido y aceptado parcial",
-                "Recibida y aceptada (las correctas) / Recibida y rechazada (las erróneas)",
-                true,
-                false
-        ));
-
-        opciones.add(new OpcionRecepcion(
-                4,
-                "La documentación se debe redirigir a otra área",
-                "Flujo A5: Aplica exclusivamente si la CM destino es la Comisión Médica Central (CMC).",
-                "Recibido y aceptado",
-                "Para redirigir (pase interno sin bolsín)",
-                false,
-                true // Solo aplica si es CMC
-        ));
-
-        return opciones;
+        return new String[][]{
+                {
+                        String.valueOf(OPCION_CONTENIDO_IGUAL),
+                        "El contenido es igual al registrado",
+                        "Todos los documentos y remitos coinciden exactamente con lo enviado.",
+                        remAcep,
+                        docAcep + " (todas)",
+                        "false",
+                        "true"
+                },
+                {
+                        String.valueOf(OPCION_FALTA_DOCUMENTACION),
+                        "No se recibe toda la documentación",
+                        "Uno o más documentos registrados no llegaron físicamente en el bolsín.",
+                        remParc + " / " + remAcep,
+                        docAcep + " (presentes) / " + docNoRec + " (faltantes)",
+                        "true",
+                        "true"
+                },
+                {
+                        String.valueOf(OPCION_NO_CORRESPONDE_DESTINO),
+                        "Existe documentación que no corresponde al destino",
+                        "Se recibió documentación física dirigida erróneamente a esta Comisión Médica.",
+                        remParc + " / " + remAcep,
+                        docAcep + " (correctas) / " + docRech + " (erróneas)",
+                        "true",
+                        "true"
+                },
+                {
+                        String.valueOf(OPCION_REDIRIGIR_OTRA_AREA),
+                        "La documentación se debe redirigir a otra área",
+                        "Disponible únicamente cuando la CM destino es la Comisión Médica Central (CMC).",
+                        remAcep,
+                        docRedir + " (pase interno)",
+                        "false",
+                        String.valueOf(esDestinoCMC)
+                }
+        };
     }
 
     /**
-     * DS-CU28 pasos 18-19: Captura la opción de recepción elegida y la lista de documentos afectados (para A3 o A4).
+     * Calcula la previsualización de estado resultante y severidad visual por documento
+     * para la pantalla de inspección (Paso 2), evitando lógica de negocio en el Boundary.
+     *
+     * @return Matriz [numeroDoc, estadoPrevistoDisplay, severidad(OK|WARN|ERROR|INFO)]
      */
-    public void tomarSeleccionOpcion(OpcionRecepcion opcion, List<Documentacion> docsNoConformes) {
-        if (opcion != null && opcion.isSoloCMC()) {
-            boolean esDestinoCMC = comisionMedicaEmpleado != null
-                    && (comisionMedicaEmpleado.getNombre().toUpperCase().contains("CENTRAL")
-                    || comisionMedicaEmpleado.getNombre().toUpperCase().contains("CMC"));
+    public String[][] previsualizarEstadosDocumentacion(int numeroOpcion, int[] numerosDocsNoConformes) {
+        if (bolsinSeleccionado == null) {
+            return new String[0][];
+        }
+        asegurarEstadosCargados();
+        Set<Integer> noConformes = aSet(numerosDocsNoConformes);
+        List<String[]> filas = new ArrayList<>();
+
+        for (Remito r : bolsinSeleccionado.getRemitos()) {
+            for (DetalleRemito det : r.getDetalles()) {
+                Documentacion doc = det.getDocumentacion();
+                if (doc == null) {
+                    continue;
+                }
+                boolean esObservada = noConformes.contains(doc.getNumero());
+                String[] prev = calcularPreviewDoc(numeroOpcion, esObservada);
+                filas.add(new String[]{ String.valueOf(doc.getNumero()), prev[0], prev[1] });
+            }
+        }
+        return filas.toArray(new String[0][]);
+    }
+
+    /**
+     * Retorna [textoAviso, severidad] descriptivo para la opción seleccionada en Paso 2.
+     */
+    public String[] obtenerAvisoOpcion(int numeroOpcion) {
+        asegurarEstadosCargados();
+        return switch (numeroOpcion) {
+            case OPCION_CONTENIDO_IGUAL -> new String[]{
+                    "Todos los documentos pasarán a '" + estadoDocRecibidaAceptada.getNombreDisplay() + "'.",
+                    SEV_OK
+            };
+            case OPCION_FALTA_DOCUMENTACION -> new String[]{
+                    "Desmarque los documentos que NO llegaron físicamente (pasarán a '"
+                            + estadoDocNoRecibida.getNombreDisplay() + "').",
+                    SEV_WARN
+            };
+            case OPCION_NO_CORRESPONDE_DESTINO -> new String[]{
+                    "Desmarque los documentos que NO corresponden a esta CM (pasarán a '"
+                            + estadoDocRecibidaRechazada.getNombreDisplay() + "').",
+                    SEV_ERROR
+            };
+            case OPCION_REDIRIGIR_OTRA_AREA -> new String[]{
+                    "Todos los documentos pasarán a '" + estadoDocParaRedirigir.getNombreDisplay()
+                            + "' hacia otra área interna.",
+                    SEV_INFO
+            };
+            default -> new String[]{ "", SEV_OK };
+        };
+    }
+
+    /**
+     * DS-CU28 pasos 18-20: Valida y registra la opción elegida y los documentos observados,
+     * preparando todos los datos previstos en primitivos para solicitar confirmación.
+     */
+    public void tomarSeleccionOpcion(int numeroOpcion, int[] numerosDocsNoConformes) {
+        if (numeroOpcion < OPCION_CONTENIDO_IGUAL || numeroOpcion > OPCION_REDIRIGIR_OTRA_AREA) {
+            if (pantalla != null) {
+                pantalla.mostrarAlerta("Opción inválida", "Debe seleccionar una opción de recepción válida (1 a 4).");
+            }
+            this.opcionSeleccionada = 0;
+            return;
+        }
+
+        if (numeroOpcion == OPCION_REDIRIGIR_OTRA_AREA) {
+            boolean esDestinoCMC = comisionMedicaEmpleado != null && comisionMedicaEmpleado.esCentral();
             if (!esDestinoCMC) {
-                System.out.println("[GESTOR] Advertencia Flujo A5: La opción 4 solo está permitida para Comisión Médica Central.");
+                System.out.println("[GESTOR] Advertencia A5: La opción 4 solo está permitida para Comisión Médica Central.");
                 if (pantalla != null) {
-                    pantalla.mostrarAlerta("Opción No Disponible (Flujo A5)",
+                    pantalla.mostrarAlerta("Opción No Disponible",
                             "La opción 'Redirigir a otra área' solo aplica si la CM destino es CMC.");
                 }
-                this.opcionSeleccionada = null;
+                this.opcionSeleccionada = 0;
                 return;
             }
         }
 
-        this.opcionSeleccionada = opcion;
-        this.documentacionesNoConformes = (docsNoConformes != null) ? new ArrayList<>(docsNoConformes) : new ArrayList<>();
+        this.opcionSeleccionada = numeroOpcion;
+        this.numerosDocsNoConformes = aSet(numerosDocsNoConformes);
 
-        System.out.println("[GESTOR] Opción de recepción seleccionada: " + opcion.getTitulo()
-                + " | Documentos observados: " + this.documentacionesNoConformes.size());
+        System.out.println("[GESTOR] Opción seleccionada: " + this.opcionSeleccionada
+                + " | Documentos observados: " + this.numerosDocsNoConformes.size());
 
-        // DS-CU28 paso 20: Solicitar confirmación
-        if (pantalla != null) {
-            pantalla.solicitarConfirmacionSeleccion(bolsinSeleccionado, remitoSeleccionado, opcionSeleccionada, this.documentacionesNoConformes);
+        if (pantalla != null && bolsinSeleccionado != null) {
+            asegurarEstadosCargados();
+            ComisionMedica cmOrigen = bolsinSeleccionado.getCMOrigen();
+            String cmOrigenNombre = cmOrigen != null ? cmOrigen.getNombre() : "";
+            String emailOrigen = cmOrigen != null ? cmOrigen.getEmail() : "";
+
+            String[] cabecera = new String[]{
+                    String.valueOf(bolsinSeleccionado.getNroPrecinto()),
+                    cmOrigenNombre,
+                    estadoRecibidoCMDestino.getNombreDisplay(),
+                    "Opción " + numeroOpcion + ": " + obtenerTituloOpcion(numeroOpcion),
+                    empleadoActual != null ? empleadoActual.getNombre() : "Encargado de Bolsines",
+                    LocalDateTime.now().format(FORMATO_FECHA),
+                    cmOrigenNombre + " <" + emailOrigen + ">",
+                    SEV_OK
+            };
+
+            List<String[]> remitosPrev = new ArrayList<>();
+            List<String[]> docsPrev = new ArrayList<>();
+            for (Remito r : bolsinSeleccionado.getRemitos()) {
+                boolean remitoTieneObservadas = false;
+                for (DetalleRemito det : r.getDetalles()) {
+                    Documentacion doc = det.getDocumentacion();
+                    if (doc == null) {
+                        continue;
+                    }
+                    boolean esObservada = this.numerosDocsNoConformes.contains(doc.getNumero());
+                    if (esObservada && (numeroOpcion == OPCION_FALTA_DOCUMENTACION
+                            || numeroOpcion == OPCION_NO_CORRESPONDE_DESTINO)) {
+                        remitoTieneObservadas = true;
+                    }
+                    String[] prevDoc = calcularPreviewDoc(numeroOpcion, esObservada);
+                    String estadoActualTxt = doc.getEstadoActual() != null
+                            ? doc.getEstadoActual().getNombreDisplay() : "-";
+                    docsPrev.add(new String[]{
+                            String.valueOf(r.getNumero()),
+                            String.valueOf(doc.getNumero()),
+                            doc.mostrarTipoDocumentacion(),
+                            doc.getAsunto(),
+                            estadoActualTxt,
+                            prevDoc[0],
+                            prevDoc[1]
+                    });
+                }
+                String estadoRemitoPrev = remitoTieneObservadas
+                        ? estadoRemitoRecibidoAceptadoParcial.getNombreDisplay()
+                        : estadoRemitoRecibidoAceptado.getNombreDisplay();
+                String sevRemito = remitoTieneObservadas ? SEV_WARN : SEV_OK;
+                remitosPrev.add(new String[]{ String.valueOf(r.getNumero()), estadoRemitoPrev, sevRemito });
+            }
+
+            pantalla.solicitarConfirmacionSeleccion(
+                    cabecera,
+                    remitosPrev.toArray(new String[0][]),
+                    docsPrev.toArray(new String[0][])
+            );
         }
     }
 
@@ -335,53 +514,38 @@ public class GestorRecepcionBolsin implements IAgregado {
     public void tomarConfirmacionSeleccion(boolean confirmada) {
         if (!confirmada) {
             System.out.println("[GESTOR] Flujo alternativo A6: El Encargado de Bolsines no confirma la operación.");
+            this.opcionSeleccionada = 0;
+            this.numerosDocsNoConformes.clear();
             if (pantalla != null) {
-                pantalla.mostrarAlerta("Operación Cancelada (A6)",
-                        "No se confirmó la recepción. El bolsín permanece en estado 'Enviado'.");
+                pantalla.mostrarAlerta("Operación No Confirmada",
+                        "No se confirmó la recepción. El bolsín permanece en estado pendiente.");
                 pantalla.cancelar();
             }
             return;
         }
 
-        System.out.println("[GESTOR] Recepción confirmada. Iniciando actualización de estados...");
-
-        // DS-CU28 paso 23: Recuperar estados del sistema
-        obtenerEstado();
-
-        // DS-CU28 paso 24: Capturar fecha y hora actual
-        getFechaHoraActual();
-
-        // DS-CU28 pasos 25-30: Actualizar estados de Bolsín
-        actualizarEstadoBolsin();
-
-        // DS-CU28 pasos 39-40: Actualizar estados de Remitos y Documentaciones
-        actualizarRemitoYDocumentacion();
-
-        // Persistencia transaccional ACID en BD H2 vía JPA/Hibernate
-        persistirRecepcion();
-
-        // DS-CU28 pasos 31-32: Notificar recepción (CU 29 post-commit)
-        notificarRecepcion();
-
-        // DS-CU28 paso 33: Informar en pantalla resultado y notificación
-        if (pantalla != null) {
-            pantalla.informarCorrectoEnvioNotificacion(ultimaNotificacionEnviada);
+        if (bolsinSeleccionado == null || opcionSeleccionada == 0) {
+            return;
         }
 
-        // DS-CU28 paso 34: Finalizar caso de uso
+        System.out.println("[GESTOR] Recepción confirmada. Iniciando actualización de estados...");
+
+        obtenerEstado();
+        getFechaHoraActual();
+        actualizarEstadoBolsin();
+        actualizarRemitoYDocumentacion();
+        persistirRecepcion();
+        notificarRecepcion();
+
+        if (pantalla != null) {
+            pantalla.informarCorrectoEnvioNotificacion(this.ultimaNotificacionDatos, this.ultimosRemitosActualizados);
+        }
+
         finCU();
     }
 
     /**
-     * Sobrecarga de compatibilidad con strings.
-     */
-    public void tomarConfirmacionSeleccion(String opcionRecepcion, String confirmacion) {
-        boolean conf = "S".equalsIgnoreCase(confirmacion) || "SI".equalsIgnoreCase(confirmacion);
-        tomarConfirmacionSeleccion(conf);
-    }
-
-    /**
-     * DS-CU28 paso 23 y loops sec. 6: Recupera los objetos Estado desde el repositorio en memoria.
+     * DS-CU28 paso 23 y loops sec. 6: Recupera los objetos Estado desde el repositorio.
      */
     public void obtenerEstado() {
         this.estadosDisponibles = new ArrayList<>(repositorio.obtenerEstados());
@@ -425,188 +589,258 @@ public class GestorRecepcionBolsin implements IAgregado {
             System.out.println("[GESTOR] Error: Datos incompletos para actualizar estado del bolsín.");
             return;
         }
-
-        // 1. Actualizar Bolsín -> Siempre "Recibido en CM destino" (+ fecha/hora + empleado)
         bolsinSeleccionado.marcarRecibido(fechaHoraActual, estadoRecibidoCMDestino, empleadoActual);
     }
 
     /**
-     * Persiste de forma transaccional en BD (JPA/Hibernate) los cambios del bolsín,
-     * su remito, las documentaciones y los historiales de estado.
-     */
-    public void persistirRecepcion() {
-        if (bolsinSeleccionado == null) {
-            return;
-        }
-        this.bolsinSeleccionado = repositorio.actualizarBolsin(this.bolsinSeleccionado, this.empleadoActual);
-        if (this.bolsinSeleccionado != null) {
-            this.remitoSeleccionado = !this.bolsinSeleccionado.getRemitos().isEmpty()
-                    ? this.bolsinSeleccionado.getRemitos().get(0)
-                    : null;
-        }
-    }
-
-    /**
-     * DS-CU28 pasos 39-40 y loop sec. 8: Delega la actualización de remitos y documentaciones.
+     * DS-CU28 pasos 39-40 y loop sec. 8: Delega la actualización de todos los remitos y documentaciones.
      */
     public void actualizarRemitoYDocumentacion() {
         if (bolsinSeleccionado == null) {
             return;
         }
 
-        Set<Integer> numerosNoConformes = new HashSet<>();
-        for (Documentacion d : documentacionesNoConformes) {
-            if (d != null) {
-                numerosNoConformes.add(d.getNumero());
-            }
-        }
-
-        if (opcionSeleccionada == null || opcionSeleccionada.esContenidoIgual()) {
+        if (opcionSeleccionada == OPCION_CONTENIDO_IGUAL) {
             bolsinSeleccionado.actualizarRemitoYDocumentacion(
                     fechaHoraActual, estadoRemitoRecibidoAceptado, estadoDocRecibidaAceptada, empleadoActual);
-        } else if (opcionSeleccionada.esFaltaDocumentacion()) {
+        } else if (opcionSeleccionada == OPCION_FALTA_DOCUMENTACION) {
             bolsinSeleccionado.registrarFaltaDocumentacion(
                     fechaHoraActual, estadoRemitoRecibidoAceptado, estadoRemitoRecibidoAceptadoParcial,
-                    estadoDocRecibidaAceptada, estadoDocNoRecibida, numerosNoConformes, empleadoActual);
-        } else if (opcionSeleccionada.esNoCorrespondeDestino()) {
+                    estadoDocRecibidaAceptada, estadoDocNoRecibida, numerosDocsNoConformes, empleadoActual);
+        } else if (opcionSeleccionada == OPCION_NO_CORRESPONDE_DESTINO) {
             bolsinSeleccionado.registrarDestinoErroneo(
                     fechaHoraActual, estadoRemitoRecibidoAceptado, estadoRemitoRecibidoAceptadoParcial,
-                    estadoDocRecibidaAceptada, estadoDocRecibidaRechazada, numerosNoConformes, empleadoActual);
-        } else if (opcionSeleccionada.esRedirigirAOtraArea()) {
+                    estadoDocRecibidaAceptada, estadoDocRecibidaRechazada, numerosDocsNoConformes, empleadoActual);
+        } else if (opcionSeleccionada == OPCION_REDIRIGIR_OTRA_AREA) {
             bolsinSeleccionado.marcarParaRedirigir(
                     fechaHoraActual, estadoRemitoRecibidoAceptado, estadoDocParaRedirigir, empleadoActual);
         }
     }
 
     /**
-     * DS-CU28 pasos 31-32: Incluye el CU 29 para notificar a la CM de origen por correo.
+     * Persiste transaccionalmente en BD los cambios del bolsín, remitos, documentaciones e historiales.
+     */
+    public void persistirRecepcion() {
+        if (bolsinSeleccionado == null) {
+            return;
+        }
+        this.bolsinSeleccionado = repositorio.actualizarBolsin(this.bolsinSeleccionado, this.empleadoActual);
+    }
+
+    /**
+     * DS-CU28 pasos 31-32: Incluye CU 29 (<<includes>>) delegando en GestorNotificarRecepcionBolsin
+     * estrictamente post-commit después de persistirRecepcion().
      */
     public void notificarRecepcion() {
-        StringBuilder detalleDocs = new StringBuilder();
+        if (bolsinSeleccionado == null) {
+            return;
+        }
+
+        List<String[]> resumenRemitos = new ArrayList<>();
+        List<String[]> remitosParaVista = new ArrayList<>();
+        List<String[]> detalleDocs = new ArrayList<>();
+
         for (Remito r : bolsinSeleccionado.getRemitos()) {
+            Estado estRem = r.getEstado();
+            String estRemTxt = estRem != null ? estRem.getNombreDisplay() : "-";
+            String sevRem = (estRem != null && estRem.esRecibidoYAceptadoParcial()) ? SEV_WARN : SEV_OK;
+            resumenRemitos.add(new String[]{ String.valueOf(r.getNumero()), estRemTxt });
+            remitosParaVista.add(new String[]{ String.valueOf(r.getNumero()), estRemTxt, sevRem });
+
             r.buscarDocumentacion();
             for (DetalleRemito d : r.getDetalles()) {
                 Documentacion doc = d.getDocumentacion();
-                detalleDocs.append("    • [Remito ").append(r.getNumero()).append("] [")
-                        .append(doc.mostrarTipoDocumentacion())
-                        .append("] ")
-                        .append(doc.getAsunto())
-                        .append(" ── Estado: ")
-                        .append(doc.getEstadoActual() != null ? doc.getEstadoActual().getNombreDisplay() : "Procesada")
-                        .append("\n");
+                if (doc != null) {
+                    String estDocTxt = doc.getEstadoActual() != null
+                            ? doc.getEstadoActual().getNombreDisplay() : "-";
+                    detalleDocs.add(new String[]{
+                            String.valueOf(r.getNumero()),
+                            doc.mostrarTipoDocumentacion(),
+                            doc.getAsunto(),
+                            estDocTxt
+                    });
+                }
             }
         }
 
         ComisionMedica cmOrigen = bolsinSeleccionado.getCMOrigen();
-        String cmOrigenNombre = cmOrigen.getNombre();
-        String emailOrigen = cmOrigen.getEmail();
+        String cmOrigenNombre = cmOrigen != null ? cmOrigen.getNombre() : "";
+        String emailOrigen = cmOrigen != null ? cmOrigen.getEmail() : "";
+        String estadoBolsinTxt = estadoRecibidoCMDestino != null ? estadoRecibidoCMDestino.getNombreDisplay() : "-";
+        String fechaFmt = fechaHoraActual != null ? fechaHoraActual.format(FORMATO_FECHA) : "";
+        String respNombre = empleadoActual != null ? empleadoActual.getNombre() : "Encargado de Bolsines";
 
-        this.ultimaNotificacionEnviada = new NotificacionRecepcionBolsin(
+        this.ultimosRemitosActualizados = remitosParaVista.toArray(new String[0][]);
+        this.ultimaNotificacionDatos = gestorNotificacion.notificarRecepcionBolsin(
+                bolsinSeleccionado.getNroPrecinto(),
                 cmOrigenNombre,
                 emailOrigen,
-                String.valueOf(bolsinSeleccionado.getNroPrecinto()),
-                remitoSeleccionado != null ? String.valueOf(remitoSeleccionado.getNumero()) : "N/A",
-                estadoRecibidoCMDestino.getNombreDisplay(),
-                remitoSeleccionado != null && remitoSeleccionado.getEstado() != null
-                        ? remitoSeleccionado.getEstado().getNombreDisplay() : "Aceptado",
-                detalleDocs.toString(),
-                fechaHoraActual,
-                empleadoActual != null ? empleadoActual.getNombre() : "Encargado de Bolsines"
+                estadoBolsinTxt,
+                resumenRemitos.toArray(new String[0][]),
+                detalleDocs.toArray(new String[0][]),
+                fechaFmt,
+                respNombre
         );
-
-        // Envío formal a través de la interfaz de boundary con el servidor de correo
-        servidorCorreo.enviarNotificacion(ultimaNotificacionEnviada);
     }
 
     /**
-     * DS-CU28 paso 34: Finaliza el CU liberando las referencias transitorias.
+     * DS-CU28 paso 34: Finaliza el CU liberando únicamente las referencias transitorias en memoria.
      */
     public void finCU() {
-        System.out.println("[GESTOR] Caso de uso CU-28 finalizado con éxito.");
+        System.out.println("[GESTOR] Caso de uso finalizado con éxito.");
         this.bolsinSeleccionado = null;
-        this.remitoSeleccionado = null;
-        this.opcionSeleccionada = null;
-        this.documentacionesNoConformes = new ArrayList<>();
+        this.opcionSeleccionada = 0;
+        this.numerosDocsNoConformes = new LinkedHashSet<>();
     }
 
     /**
-     * Cancela la operación actual en cualquier momento (Obs. 1).
+     * Obs. 1: Cancela la operación actual en cualquier momento sin persistir ni notificar.
      */
     public void cancelarRecepcion() {
-        System.out.println("[GESTOR] Operación cancelada por el usuario (Obs. 1).");
+        System.out.println("[GESTOR] Operación cancelada por el usuario.");
         this.bolsinSeleccionado = null;
-        this.remitoSeleccionado = null;
-        this.opcionSeleccionada = null;
-        this.documentacionesNoConformes = new ArrayList<>();
+        this.opcionSeleccionada = 0;
+        this.numerosDocsNoConformes = new LinkedHashSet<>();
         buscarBolsinEstadoEnviado();
-        if (pantalla != null) {
-            pantalla.mostrarBolsines(bolsinesEnviados);
+        notificarListadoBolsinesAPantalla(this.bolsinesEnviados);
+    }
+
+    // ── Getters públicos estrictamente primitivos (0 entidades expuestas) ──
+
+    public int[] getPrecintosBolsinesEnviados() {
+        return extraerPrecintos(this.bolsinesEnviados);
+    }
+
+    public int getPrecintoBolsinSeleccionado() {
+        return this.bolsinSeleccionado != null ? this.bolsinSeleccionado.getNroPrecinto() : -1;
+    }
+
+    public int getOpcionSeleccionadaNumero() {
+        return this.opcionSeleccionada;
+    }
+
+    public int[] getNumerosDocsNoConformes() {
+        int[] arr = new int[this.numerosDocsNoConformes.size()];
+        int i = 0;
+        for (Integer n : this.numerosDocsNoConformes) {
+            arr[i++] = n;
+        }
+        return arr;
+    }
+
+    public String[] getUltimaNotificacionDatos() {
+        return this.ultimaNotificacionDatos;
+    }
+
+    public String[][] getUltimosRemitosActualizados() {
+        return this.ultimosRemitosActualizados;
+    }
+
+    // ── Helpers privados internos ──
+
+    private void notificarListadoBolsinesAPantalla(List<Bolsin> bolsines) {
+        if (pantalla == null) {
+            return;
+        }
+        int n = bolsines.size();
+        int[] precintos = new int[n];
+        String[] cmsOrigen = new String[n];
+        String[][] filasTabla = new String[n][6];
+
+        for (int i = 0; i < n; i++) {
+            Bolsin b = bolsines.get(i);
+            precintos[i] = b.getNroPrecinto();
+            cmsOrigen[i] = b.getNombreCMOrigen();
+
+            StringBuilder remitosCsv = new StringBuilder();
+            List<Remito> remitos = b.getRemitos();
+            for (int j = 0; j < remitos.size(); j++) {
+                if (j > 0) {
+                    remitosCsv.append(", ");
+                }
+                remitosCsv.append(remitos.get(j).getNumero());
+            }
+
+            filasTabla[i][0] = String.valueOf(b.getNroPrecinto());
+            filasTabla[i][1] = b.getNombreCMOrigen();
+            filasTabla[i][2] = b.getCmDestino() != null ? b.getCmDestino().getNombre() : "-";
+            filasTabla[i][3] = remitos.isEmpty() ? "S/R" : remitosCsv.toString();
+            filasTabla[i][4] = b.getFechaEnvio() != null ? b.getFechaEnvio().format(FORMATO_FECHA) : "-";
+            filasTabla[i][5] = b.getEstadoActual() != null ? b.getEstadoActual().getNombreDisplay() : "-";
+        }
+
+        List<ComisionMedica> catalogoCMs = repositorio.obtenerComisionesMedicas();
+        Set<String> nombresCMOrigen = new LinkedHashSet<>();
+        for (Bolsin b : bolsines) {
+            if (!b.getNombreCMOrigen().isEmpty()) {
+                nombresCMOrigen.add(b.getNombreCMOrigen());
+            }
+        }
+        if (catalogoCMs != null) {
+            for (ComisionMedica cm : catalogoCMs) {
+                if (cm.getNombre() != null && !cm.getNombre().isEmpty()) {
+                    nombresCMOrigen.add(cm.getNombre());
+                }
+            }
+        }
+
+        pantalla.mostrarNumeroPrecinto(precintos);
+        pantalla.mostrarCMOrigen(cmsOrigen);
+        pantalla.mostrarInformacionAdicionalBolsines(
+                filasTabla,
+                nombresCMOrigen.toArray(new String[0]),
+                this.todosBolsines != null ? this.todosBolsines.size() : n
+        );
+        pantalla.solicitarSeleccionBolsin();
+    }
+
+    private void asegurarEstadosCargados() {
+        if (estadoRecibidoCMDestino == null || estadoRemitoRecibidoAceptado == null
+                || estadoDocRecibidaAceptada == null || estadoDocNoRecibida == null
+                || estadoDocRecibidaRechazada == null || estadoDocParaRedirigir == null) {
+            obtenerEstado();
         }
     }
 
-    /**
-     * Permite alternar escenarios de prueba mock (CMC vs CM Regional) hasta su eliminación en Fase 3.
-     */
-    public void cargarEscenario(int escenario) {
-        if (escenario == 1) {
-            ComisionMedica cmCentral = new ComisionMedica(1, "Comisión Médica Central (CMC) - CABA",
-                    "Av. Roque Sáenz Peña 1100", "despacho.cmc@srt.gob.ar", "011-4321-1000");
-            Empleado emp = new Empleado("Juan Pérez (Encargado Central)", cmCentral);
-            Usuario user = new Usuario("jperez.cmc", "Operador Central", emp);
-            this.sesionActual = new Sesion(user, LocalDateTime.now());
-        } else {
-            ComisionMedica cmRosario = new ComisionMedica(2, "CMJ N° 7 - Rosario",
-                    "Bv. Oroño 850", "despacho.rosario@srt.gob.ar", "0341-440-2000");
-            Empleado emp = new Empleado("Mariana López (Encargada Rosario)", cmRosario);
-            Usuario user = new Usuario("mlopez.rosario", "Operador Rosario", emp);
-            this.sesionActual = new Sesion(user, LocalDateTime.now());
+    private String[] calcularPreviewDoc(int numeroOpcion, boolean esObservada) {
+        return switch (numeroOpcion) {
+            case OPCION_CONTENIDO_IGUAL -> new String[]{ estadoDocRecibidaAceptada.getNombreDisplay(), SEV_OK };
+            case OPCION_FALTA_DOCUMENTACION -> esObservada
+                    ? new String[]{ estadoDocNoRecibida.getNombreDisplay(), SEV_WARN }
+                    : new String[]{ estadoDocRecibidaAceptada.getNombreDisplay(), SEV_OK };
+            case OPCION_NO_CORRESPONDE_DESTINO -> esObservada
+                    ? new String[]{ estadoDocRecibidaRechazada.getNombreDisplay(), SEV_ERROR }
+                    : new String[]{ estadoDocRecibidaAceptada.getNombreDisplay(), SEV_OK };
+            case OPCION_REDIRIGIR_OTRA_AREA -> new String[]{ estadoDocParaRedirigir.getNombreDisplay(), SEV_INFO };
+            default -> new String[]{ "-", SEV_OK };
+        };
+    }
+
+    private String obtenerTituloOpcion(int numeroOpcion) {
+        return switch (numeroOpcion) {
+            case OPCION_CONTENIDO_IGUAL -> "El contenido es igual al registrado";
+            case OPCION_FALTA_DOCUMENTACION -> "No se recibe toda la documentación";
+            case OPCION_NO_CORRESPONDE_DESTINO -> "Existe documentación que no corresponde al destino";
+            case OPCION_REDIRIGIR_OTRA_AREA -> "La documentación se debe redirigir a otra área";
+            default -> "";
+        };
+    }
+
+    private static Set<Integer> aSet(int[] arr) {
+        Set<Integer> set = new LinkedHashSet<>();
+        if (arr != null) {
+            for (int n : arr) {
+                set.add(n);
+            }
         }
-
-        tomarOpcionRegistrarRecepcionBolsin();
+        return set;
     }
 
-    // Getters auxiliares para la interfaz
-    public Sesion getSesionActual() {
-        return sesionActual;
-    }
-
-    public ComisionMedica getComisionMedicaEmpleado() {
-        return comisionMedicaEmpleado;
-    }
-
-    public Empleado getEmpleadoActual() {
-        return empleadoActual;
-    }
-
-    public List<Bolsin> getBolsinesEnviados() {
-        return bolsinesEnviados;
-    }
-
-    public List<Bolsin> getTodosBolsines() {
-        return todosBolsines;
-    }
-
-    public List<ComisionMedica> getComisionesMedicasFiltro() {
-        return repositorio.obtenerComisionesMedicas();
-    }
-
-    public Bolsin getBolsinSeleccionado() {
-        return bolsinSeleccionado;
-    }
-
-    public Remito getRemitoSeleccionado() {
-        return remitoSeleccionado;
-    }
-
-    public OpcionRecepcion getOpcionSeleccionada() {
-        return opcionSeleccionada;
-    }
-
-    public NotificacionRecepcionBolsin getUltimaNotificacionEnviada() {
-        return ultimaNotificacionEnviada;
-    }
-
-    public List<Documentacion> getDocumentacionesNoConformes() {
-        return documentacionesNoConformes;
+    private static int[] extraerPrecintos(List<Bolsin> lista) {
+        int[] precintos = new int[lista.size()];
+        for (int i = 0; i < lista.size(); i++) {
+            precintos[i] = lista.get(i).getNroPrecinto();
+        }
+        return precintos;
     }
 }

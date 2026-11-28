@@ -54,10 +54,20 @@ public class DominioPuroYContratosTest {
     // =========================================================================
 
     @Test
-    @DisplayName("Pureza Dominio (Estático): 0 imports de jakarta.persistence, hibernate o javafx en las 12 entidades")
+    @DisplayName("Pureza Dominio (Estático): exactamente 12 clases E1+E2 y 0 imports de infraestructura")
     void testDominioSinImportsInfraestructura() throws IOException {
         Path domainDir = Paths.get("src", "main", "java", "com", "ppai", "domain", "model", "cu28");
         assertTrue(Files.exists(domainDir));
+
+        List<String> archivosEnDominio;
+        try (var stream = Files.list(domainDir)) {
+            archivosEnDominio = stream.filter(p -> p.toString().endsWith(".java"))
+                    .map(p -> p.getFileName().toString())
+                    .sorted()
+                    .toList();
+        }
+        assertEquals(12, archivosEnDominio.size(),
+                "domain.model.cu28 debe contener exactamente las 12 clases del Diagrama de Clases");
 
         for (Class<?> clazz : DOCE_CLASES_DOMINIO) {
             Path srcFile = domainDir.resolve(clazz.getSimpleName() + ".java");

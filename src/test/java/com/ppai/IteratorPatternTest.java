@@ -317,8 +317,8 @@ public class IteratorPatternTest {
         assertInstanceOf(IteradorBolsin.class, it);
 
         gestor.buscarBolsinEstadoEnviado();
-        assertEquals(1, gestor.getBolsinesEnviados().size());
-        assertEquals(7041, gestor.getBolsinesEnviados().get(0).getNroPrecinto());
+        assertEquals(1, gestor.getPrecintosBolsinesEnviados().length);
+        assertEquals(7041, gestor.getPrecintosBolsinesEnviados()[0]);
     }
 
     @Test

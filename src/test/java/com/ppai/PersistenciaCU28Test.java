@@ -1,7 +1,12 @@
 package com.ppai;
 
 import com.ppai.controller.cu28.GestorRecepcionBolsin;
-import com.ppai.domain.model.cu28.*;
+import com.ppai.domain.model.cu28.Bolsin;
+import com.ppai.domain.model.cu28.DetalleRemito;
+import com.ppai.domain.model.cu28.Documentacion;
+import com.ppai.domain.model.cu28.Estado;
+import com.ppai.domain.model.cu28.Remito;
+import com.ppai.domain.model.cu28.Sesion;
 import com.ppai.repository.ConexionBD;
 import com.ppai.repository.cu28.IRepositorioCU28;
 import com.ppai.repository.cu28.MapeadorPersistenciaCU28;
@@ -17,7 +22,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -69,7 +73,6 @@ public class PersistenciaCU28Test {
     @Test
     @DisplayName("Seeder ReiniciarEscenarioBD es idempotente en catálogos y carga 7 bolsines / 8 remitos (con multi-remito)")
     void testReiniciarEscenarioSinDuplicarCatalogos() throws SQLException {
-        // Ejecutar una segunda vez para comprobar que no duplica estados/CMs/tipos
         ReiniciarEscenarioBD.reiniciar("cmc");
 
         assertEquals(9L, contar("SELECT COUNT(*) FROM estado"));
@@ -88,30 +91,15 @@ public class PersistenciaCU28Test {
     @Test
     @DisplayName("Durabilidad real tras cierre y reapertura: Opción 1 y A3 multi-remito sobre disco")
     void testDurabilidadRealTrasCierreYReapertura() {
-        // 1. Confirmar recepción Opción 1 en bolsín 7041
-        Bolsin prec7041 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> b.getNroPrecinto() == 7041)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionBolsin(prec7041);
-        OpcionRecepcion opc1 = gestor.buscarOpcionesRecepcion().stream()
-                .filter(OpcionRecepcion::esContenidoIgual)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionOpcion(opc1, Collections.emptyList());
+        gestor.tomarSeleccionBolsin(7041);
+        gestor.tomarSeleccionOpcion(GestorRecepcionBolsin.OPCION_CONTENIDO_IGUAL, new int[0]);
         gestor.tomarConfirmacionSeleccion(true);
 
-        // 2. Confirmar recepción A3 sobre bolsín multi-remito 8820 (falta doc 201 del Remito 892; Remito 893 completo)
-        Bolsin prec8820 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> b.getNroPrecinto() == 8820)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionBolsin(prec8820);
-        OpcionRecepcion opc2 = gestor.buscarOpcionesRecepcion().stream()
-                .filter(OpcionRecepcion::esFaltaDocumentacion)
-                .findFirst().orElseThrow();
-        Documentacion doc201Faltante = prec8820.getRemitos().get(0).getDetalles().get(0).getDocumentacion();
-        gestor.tomarSeleccionOpcion(opc2, List.of(doc201Faltante));
+        // Confirmar A3 sobre bolsín multi-remito 8820 (falta doc 201 del Remito 892; Remito 893 completo)
+        gestor.tomarSeleccionBolsin(8820);
+        gestor.tomarSeleccionOpcion(GestorRecepcionBolsin.OPCION_FALTA_DOCUMENTACION, new int[]{ 201 });
         gestor.tomarConfirmacionSeleccion(true);
 
-        // 3. Simular cierre total de aplicación y reapertura contra el mismo archivo H2 en disco
         ConexionBD.cerrar();
         IRepositorioCU28 repoReabierto = new MapeadorPersistenciaCU28();
 
@@ -151,43 +139,28 @@ public class PersistenciaCU28Test {
     @Test
     @DisplayName("No-destrucción: instanciar un nuevo Gestor y ejecutar finCU() no borra recepciones previas en disco")
     void testNoDestruccionAlIniciarNiEnFinCU() {
-        Bolsin prec7041 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> b.getNroPrecinto() == 7041)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionBolsin(prec7041);
-        OpcionRecepcion opc1 = gestor.buscarOpcionesRecepcion().stream()
-                .filter(OpcionRecepcion::esContenidoIgual)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionOpcion(opc1, Collections.emptyList());
-        gestor.tomarConfirmacionSeleccion(true); // Ejecuta persistirRecepcion() y finCU()
+        gestor.tomarSeleccionBolsin(7041);
+        gestor.tomarSeleccionOpcion(GestorRecepcionBolsin.OPCION_CONTENIDO_IGUAL, new int[0]);
+        gestor.tomarConfirmacionSeleccion(true);
 
-        // Simular nuevo arranque de la aplicación sobre la misma BD en disco
         IRepositorioCU28 repoNuevo = new MapeadorPersistenciaCU28();
-        assertFalse(repoNuevo.estaVacia(), "La BD ya poblada no debe considerarse vacía");
+        assertFalse(repoNuevo.estaVacia());
         GestorRecepcionBolsin gestorNuevo = new GestorRecepcionBolsin(repoNuevo.obtenerSesionActiva(), repoNuevo);
         gestorNuevo.tomarOpcionRegistrarRecepcionBolsin();
 
         Bolsin enBD = buscarBolsinPersistido(repoNuevo, 7041);
-        assertEquals(Estado.NOMBRE_RECIBIDO_CM_DESTINO, enBD.getEstadoActual().getNombre(),
-                "Reiniciar el Gestor jamás debe pisar recepciones confirmadas en disco");
-        assertTrue(gestorNuevo.getBolsinesEnviados().stream().noneMatch(b -> b.getNroPrecinto() == 7041),
-                "El bolsín 7041 ya recibido no debe volver a aparecer como ENVIADO");
+        assertEquals(Estado.NOMBRE_RECIBIDO_CM_DESTINO, enBD.getEstadoActual().getNombre());
+        for (int precinto : gestorNuevo.getPrecintosBolsinesEnviados()) {
+            assertNotEquals(7041, precinto, "El bolsín 7041 ya recibido no debe volver a aparecer como ENVIADO");
+        }
     }
 
     @Test
     @DisplayName("BD H2: Flujo Alternativo A4 persiste remito parcial/completo y doc RECIBIDA_Y_RECHAZADA")
     void testPersistenciaFlujoAlternativoA4() {
-        Bolsin prec8820 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> b.getNroPrecinto() == 8820)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionBolsin(prec8820);
-
-        OpcionRecepcion opc3 = gestor.buscarOpcionesRecepcion().stream()
-                .filter(OpcionRecepcion::esNoCorrespondeDestino)
-                .findFirst().orElseThrow();
-        Documentacion doc203Erroneo = prec8820.getRemitos().get(1).getDetalles().get(0).getDocumentacion();
-
-        gestor.tomarSeleccionOpcion(opc3, List.of(doc203Erroneo));
+        gestor.tomarSeleccionBolsin(8820);
+        // Doc 203 pertenece al Remito 893
+        gestor.tomarSeleccionOpcion(GestorRecepcionBolsin.OPCION_NO_CORRESPONDE_DESTINO, new int[]{ 203 });
         gestor.tomarConfirmacionSeleccion(true);
 
         Bolsin enBD = buscarBolsinPersistido(new MapeadorPersistenciaCU28(), 8820);
@@ -202,16 +175,8 @@ public class PersistenciaCU28Test {
     @Test
     @DisplayName("BD H2: Flujo Alternativo A5 (CMC) persiste documentación PARA_REDIRIGIR")
     void testPersistenciaFlujoAlternativoA5() {
-        Bolsin prec9150 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> b.getNroPrecinto() == 9150)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionBolsin(prec9150);
-
-        OpcionRecepcion opc4 = gestor.buscarOpcionesRecepcion().stream()
-                .filter(OpcionRecepcion::esRedirigirAOtraArea)
-                .findFirst().orElseThrow();
-
-        gestor.tomarSeleccionOpcion(opc4, Collections.emptyList());
+        gestor.tomarSeleccionBolsin(9150);
+        gestor.tomarSeleccionOpcion(GestorRecepcionBolsin.OPCION_REDIRIGIR_OTRA_AREA, new int[0]);
         gestor.tomarConfirmacionSeleccion(true);
 
         Bolsin enBD = buscarBolsinPersistido(new MapeadorPersistenciaCU28(), 9150);
@@ -224,15 +189,8 @@ public class PersistenciaCU28Test {
     @Test
     @DisplayName("BD H2: Flujo Alternativo A6 (no confirmar) mantiene el bolsín ENVIADO sin cambios en BD")
     void testNoConfirmarA6NoModificaBaseDeDatos() {
-        Bolsin prec7041 = gestor.getBolsinesEnviados().stream()
-                .filter(b -> b.getNroPrecinto() == 7041)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionBolsin(prec7041);
-
-        OpcionRecepcion opc1 = gestor.buscarOpcionesRecepcion().stream()
-                .filter(OpcionRecepcion::esContenidoIgual)
-                .findFirst().orElseThrow();
-        gestor.tomarSeleccionOpcion(opc1, Collections.emptyList());
+        gestor.tomarSeleccionBolsin(7041);
+        gestor.tomarSeleccionOpcion(GestorRecepcionBolsin.OPCION_CONTENIDO_IGUAL, new int[0]);
         gestor.tomarConfirmacionSeleccion(false);
 
         Bolsin enBD = buscarBolsinPersistido(new MapeadorPersistenciaCU28(), 7041);

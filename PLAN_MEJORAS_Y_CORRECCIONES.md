@@ -218,7 +218,7 @@
 ---
 
 ### Fase 3 — Caso de Uso Incluido (`<<includes>>` CU 29) con Gestor Propio + Saneamiento del Controlador
-**Estado:** ⏳ **Pendiente** *(depende de Fase 1 y Fase 2)*
+**Estado:** ✅ **Cerrada** *(Gate Fase 3 aprobado: `CU29Test` 4/4 + frontera 100% primitivos + dominio estrictamente con 12 clases E1+E2)*
 
 * **3.1 Gestor dedicado para el CU 29 (`<<includes>>`):**
   * Crear `GestorNotificarRecepcionBolsin` en `com.ppai.controller.cu29` y mover `InterfazServidorCorreo` a `com.ppai.boundary.cu29`, haciendo que `InterfazServidorCorreo` reciba exclusivamente primitivos `String` (`enviarNotificacion(String emailDestino, String asunto, String cuerpo)` — 0 imports de dominio).
@@ -243,7 +243,7 @@
 ---
 
 ### Fase 4 — Desacople Estructural Total del Boundary (BCE Ultra-Estricto + Soporte Multi-Remito)
-**Estado:** ⏳ **Pendiente** *(depende de Fase 3)*
+**Estado:** ✅ **Cerrada** *(Gate Fase 4 aprobado: `ArquitecturaBCETest` 4/4 bloqueante + UI multi-remito en Pasos 1–4; total `mvn clean test` 44/44 bajo JDK 21)*
 
 * **Objetivo:** Erradicar por completo la violación crítica de arquitectura BCE en toda la capa `com.ppai.boundary.**` (`PantallaRecepcionBolsin`, `DocumentacionRow`, `InterfazServidorCorreo`), dejando la Pantalla comunicándose exclusivamente con `GestorRecepcionBolsin` mediante primitivos/`String` y con soporte funcional multi-remito en los 4 pasos *(el rediseño estético de colores, layout y textos finales queda reservado para Fase 5)*.
 * **Cambios concretos:**
@@ -313,7 +313,7 @@
 | **0** | Congelamiento del Contrato de Secuencia y Decisiones | ✅ Cerrada | `.md` 100% alineados con el DS real + todos los puntos abiertos resueltos |
 | **1** | Patrón Iterator Exacto + Dominio OO Puro (Opción B) | ✅ Cerrada | Test pureza Dominio (0 JPA/JavaFX, 0 `id` artificiales, solapamiento E1+E2) + Test contratos estrictos por reflexión (`Object[]` en iteradores, `int` limpios) + filtro real sin look-ahead + tests multi-remito en Dominio |
 | **2** | Data Mapper (JDBC) + H2 en disco + script seeder separado | ✅ Cerrada | Test durabilidad en disco (bolsín 2+ remitos) tras cierre/reapertura + Test no-destrucción al iniciar/`finCU()` + Test `MapeadorPersistenciaCU28` y `ReiniciarEscenarioBD` (`mvn clean test` 40/40) |
-| **3** | CU 29 (`<<includes>>`) con Gestor Propio (Solo Primitivos) | ⏳ Pendiente | Tests `GestorNotificarRecepcionBolsin` post-commit + tests integración multi-remito (Opción 1, A3, A4, A5) + contratos hacia Pantalla solo primitivos / `String` |
-| **4** | Desacople Estructural del Boundary (BCE + Multi-Remito) | ⏳ Pendiente | `ArquitecturaBCETest` bloqueante sobre `com.ppai.boundary.**` (0 imports fuera de `GestorRecepcionBolsin`/control/`java.*`/`javafx.*`; 0 fechas/`LocalDateTime`/literales de estados; frontera 100% primitivos/`String`) + UI multi-remito funcional en Pasos 1–4 |
+| **3** | CU 29 (`<<includes>>`) con Gestor Propio (Solo Primitivos) | ✅ Cerrada | Tests `GestorNotificarRecepcionBolsin` post-commit + tests integración multi-remito (Opción 1, A3, A4, A5) + contratos hacia Pantalla solo primitivos / `String` |
+| **4** | Desacople Estructural del Boundary (BCE + Multi-Remito) | ✅ Cerrada | `ArquitecturaBCETest` bloqueante sobre `com.ppai.boundary.**` (0 imports fuera de `GestorRecepcionBolsin`/control/`java.*`/`javafx.*`; 0 fechas/`LocalDateTime`/literales de estados; frontera 100% primitivos/`String`) + UI multi-remito funcional en Pasos 1–4 |
 | **5** | Diseño Visual, UX Definitiva y Usuario Real | ⏳ Pendiente | Colores/layout/textos acordados + test estático higiene UX + recorrido visual completo de los 4 pasos y alternativos |
 | **6** | Auditoría Final End-to-End y Documentación | ⏳ Pendiente | Matriz 1:1 completa + `mvn clean test` 100% verde + prueba en disco tras reinicio de app |

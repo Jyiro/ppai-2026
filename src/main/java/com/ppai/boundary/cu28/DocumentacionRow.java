@@ -1,46 +1,69 @@
 package com.ppai.boundary.cu28;
 
-import com.ppai.domain.model.cu28.Documentacion;
-import com.ppai.domain.model.cu28.OpcionRecepcion;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 
 /**
- * Objeto Presentador de Fila para Documentación en la Pantalla JavaFX.
- * Encapsula la entidad Documentacion de Dominio y agrega el estado de selección
- * reactivo para los flujos alternativos A3 (No recibida) y A4 (No corresponde).
+ * Modelo visual de fila para la tabla de Documentación en JavaFX.
+ * Almacena exclusivamente primitivos / String (cero imports de dominio, cero lógica de negocio).
  */
 public class DocumentacionRow {
 
-    private final Documentacion documentacion;
+    private final int numeroRemito;
+    private final int numeroDoc;
+    private final String tipo;
+    private final String asunto;
+    private final String estadoActual;
+    private String estadoResultante;
+    private String severidadResultante;
     private final BooleanProperty seleccionada;
 
-    public DocumentacionRow(Documentacion documentacion) {
-        this.documentacion = documentacion;
-        // Por defecto marcada como conforme / recibida
+    public DocumentacionRow(int numeroRemito,
+                            int numeroDoc,
+                            String tipo,
+                            String asunto,
+                            String estadoActual) {
+        this.numeroRemito = numeroRemito;
+        this.numeroDoc = numeroDoc;
+        this.tipo = tipo;
+        this.asunto = asunto;
+        this.estadoActual = estadoActual;
+        this.estadoResultante = "-";
+        this.severidadResultante = "OK";
         this.seleccionada = new SimpleBooleanProperty(true);
     }
 
-    public Documentacion getDocumentacion() {
-        return documentacion;
+    public int getNumeroRemito() {
+        return numeroRemito;
     }
 
     public int getNumero() {
-        return documentacion.getNumero();
-    }
-
-    public String getAsunto() {
-        return documentacion.getAsunto();
+        return numeroDoc;
     }
 
     public String getTipo() {
-        return documentacion.mostrarTipoDocumentacion();
+        return tipo;
+    }
+
+    public String getAsunto() {
+        return asunto;
     }
 
     public String getEstadoActual() {
-        return documentacion.getEstadoActual() != null
-                ? documentacion.getEstadoActual().getNombreDisplay()
-                : "En bolsín enviado";
+        return estadoActual;
+    }
+
+    public String getEstadoResultante() {
+        return estadoResultante;
+    }
+
+    public String getSeveridadResultante() {
+        return severidadResultante;
+    }
+
+    public void actualizarPrevisualizacion(String estadoResultante, String severidadResultante) {
+        this.estadoResultante = (estadoResultante != null) ? estadoResultante : "-";
+        this.severidadResultante = (severidadResultante != null) ? severidadResultante : "OK";
     }
 
     public boolean isSeleccionada() {
@@ -53,22 +76,5 @@ public class DocumentacionRow {
 
     public BooleanProperty seleccionadaProperty() {
         return seleccionada;
-    }
-
-    /**
-     * Calcula dinámicamente el estado resultante según la opción de recepción elegida.
-     */
-    public String getEstadoResultante(OpcionRecepcion opcion) {
-        if (opcion == null) return "-";
-        if (opcion.esContenidoIgual()) {
-            return "Recibida y aceptada";
-        } else if (opcion.esFaltaDocumentacion()) {
-            return isSeleccionada() ? "Recibida y aceptada" : "No recibida (A3)";
-        } else if (opcion.esNoCorrespondeDestino()) {
-            return isSeleccionada() ? "Recibida y aceptada" : "Recibida y rechazada (A4)";
-        } else if (opcion.esRedirigirAOtraArea()) {
-            return "Para redirigir (A5)";
-        }
-        return "Pendiente";
     }
 }
